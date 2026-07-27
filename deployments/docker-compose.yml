@@ -1,0 +1,69 @@
+services:
+  # ── PostgreSQL Database Container ──────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: attendance-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-attendance}
+      POSTGRES_USER: ${POSTGRES_USER:-attendance_owner}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-AttendanceOwner2026}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../scripts/init_db.sql:/docker-entrypoint-initdb.d/00_init_db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-attendance_owner} -d $${POSTGRES_DB:-attendance}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # ── Database Migration Runner (One-shot task) ─────────────────────────────
+  migration:
+    container_name: attendance-migration
+    build:
+      context: ..
+      dockerfile: deployments/Dockerfile
+    entrypoint: ["/app/attendance-migrate", "up"]
+    env_file:
+      - ${ENV_FILE:-../.env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # ── Go Attendance API Backend ──────────────────────────────────────────────
+  api:
+    container_name: attendance-api
+    build:
+      context: ..
+      dockerfile: deployments/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ${ENV_FILE:-../.env}
+    ports:
+      - "127.0.0.1:8080:8080"
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+volumes:
+  pgdata:
