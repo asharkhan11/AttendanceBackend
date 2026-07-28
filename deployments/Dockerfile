@@ -27,6 +27,13 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     -o /app/bin/attendance-migrate \
     ./cmd/migrate/
 
+# Build statically linked Seeding binary
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build \
+    -ldflags="-w -s -extldflags '-static'" \
+    -o /app/bin/attendance-seed \
+    ./cmd/seed/
+
 # ── Stage 2: Minimal Runtime ──────────────────────────────────────────────────
 FROM alpine:3.19 AS runtime
 
@@ -40,6 +47,7 @@ RUN apk add --no-cache ca-certificates tzdata curl && \
 # Copy statically compiled binaries and migration SQL assets
 COPY --from=builder /app/bin/attendance-api /app/attendance-api
 COPY --from=builder /app/bin/attendance-migrate /app/attendance-migrate
+COPY --from=builder /app/bin/attendance-seed /app/attendance-seed
 COPY --from=builder /app/internal/db/migrations /app/internal/db/migrations
 
 # Set file permissions for non-root execution

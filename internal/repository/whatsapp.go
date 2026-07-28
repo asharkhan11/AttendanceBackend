@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,6 +13,8 @@ import (
 type WhatsAppRepo struct{ db *DB }
 
 func NewWhatsAppRepo(db *DB) *WhatsAppRepo { return &WhatsAppRepo{db: db} }
+
+func (r *WhatsAppRepo) Db() *DB { return r.db }
 
 type AbsentStudentNotificationInfo struct {
 	SchoolID      uuid.UUID
@@ -55,6 +58,12 @@ func (r *WhatsAppRepo) GetAbsentStudentsForSession(ctx context.Context, sessionI
 		 WHERE r.session_id = $1 AND r.status = 'absent'`
 
 	tx := r.db.Querier(ctx)
+	log.Printf("[WhatsApp debug] GetAbsentStudentsForSession: tx is nil? %v", tx == nil)
+	if tx != nil {
+		var dbSchoolID string
+		errScan := tx.QueryRow(ctx, "SELECT current_setting('app.current_school_id', true)").Scan(&dbSchoolID)
+		log.Printf("[WhatsApp debug] current_setting('app.current_school_id') in tx: %q, scan err: %v", dbSchoolID, errScan)
+	}
 	var rows pgxRows
 	var err error
 	if tx != nil {

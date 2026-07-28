@@ -30,3 +30,6 @@ DROP POLICY IF EXISTS whatsapp_logs_tenant_isolation ON whatsapp_logs;
 CREATE POLICY whatsapp_logs_tenant_isolation ON whatsapp_logs
     FOR ALL
     USING (school_id = NULLIF(current_setting('app.current_school_id', true), '')::uuid);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON whatsapp_logs TO attendance_app;
+

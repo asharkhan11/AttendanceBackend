@@ -51,7 +51,7 @@ services:
     env_file:
       - ${ENV_FILE:-../.env}
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8081:8080"
     stop_grace_period: 30s
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
