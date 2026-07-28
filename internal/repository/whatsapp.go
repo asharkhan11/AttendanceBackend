@@ -55,7 +55,14 @@ func (r *WhatsAppRepo) GetAbsentStudentsForSession(ctx context.Context, sessionI
 		 JOIN attendance_sessions s ON r.session_id = s.id
 		 JOIN students st ON r.student_id = st.id
 		 JOIN schools sch ON s.school_id = sch.id
-		 WHERE r.session_id = $1 AND r.status = 'absent'`
+		 WHERE r.session_id = $1 
+		   AND r.status = 'absent'
+		   AND NOT EXISTS (
+		       SELECT 1 FROM whatsapp_logs wl 
+		       WHERE wl.session_id = s.id 
+		         AND wl.student_id = st.id 
+		         AND wl.status = 'sent'
+		   )`
 
 	tx := r.db.Querier(ctx)
 	log.Printf("[WhatsApp debug] GetAbsentStudentsForSession: tx is nil? %v", tx == nil)

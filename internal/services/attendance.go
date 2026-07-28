@@ -275,13 +275,9 @@ func (s *AttendanceService) ProcessWhatsAppNotificationsForSession(ctx context.C
 		return
 	}
 
-	wasFinalizedNow, err := s.whatsappRepo.FinalizeSession(ctx, sessionID)
-	log.Printf("[WhatsApp debug] FinalizeSession returned wasFinalized: %v, err: %v", wasFinalizedNow, err)
+	_, err := s.whatsappRepo.FinalizeSession(ctx, sessionID)
 	if err != nil {
 		log.Printf("error finalizing session %s for whatsapp: %v", sessionID, err)
-		return
-	}
-	if !wasFinalizedNow {
 		return
 	}
 
