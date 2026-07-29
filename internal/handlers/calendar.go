@@ -21,6 +21,16 @@ func NewCalendarHandler(svc *services.CalendarService) *CalendarHandler {
 	return &CalendarHandler{svc: svc}
 }
 
+// GetWeeklySchedule godoc
+// @Summary Get school's weekly working schedule
+// @Description Returns the school working days configuration (0=Sunday, 1=Monday, etc.).
+// @Tags Calendar
+// @Accept json
+// @Produce json
+// @Security Bearer
+// @Success 200 {object} httpx.Envelope{data=[]models.WeeklySchedule}
+// @Failure 401 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Router /api/v1/school-days/weekly [get]
 func (h *CalendarHandler) GetWeeklySchedule(w http.ResponseWriter, r *http.Request) {
 	claims := auth.ClaimsFromContext(r.Context())
 	if claims == nil {
@@ -36,6 +46,19 @@ func (h *CalendarHandler) GetWeeklySchedule(w http.ResponseWriter, r *http.Reque
 	httpx.WriteOK(w, schedules)
 }
 
+// UpdateWeeklySchedule godoc
+// @Summary Update school's weekly working schedule
+// @Description Updates the working days weekly configuration.
+// @Tags Calendar
+// @Accept json
+// @Produce json
+// @Security Bearer
+// @Param request body models.UpdateWeeklyScheduleRequest true "Weekly schedule configuration"
+// @Success 200 {object} httpx.Envelope{data=[]models.WeeklySchedule}
+// @Failure 400 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Failure 401 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Failure 403 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Router /api/v1/school-days/weekly [put]
 func (h *CalendarHandler) UpdateWeeklySchedule(w http.ResponseWriter, r *http.Request) {
 	claims := auth.ClaimsFromContext(r.Context())
 	if claims == nil {
@@ -57,6 +80,18 @@ func (h *CalendarHandler) UpdateWeeklySchedule(w http.ResponseWriter, r *http.Re
 	httpx.WriteOK(w, schedules)
 }
 
+// GetDateHolidays godoc
+// @Summary Get school holidays
+// @Description Returns custom holiday/non-working dates for a specified range.
+// @Tags Calendar
+// @Accept json
+// @Produce json
+// @Security Bearer
+// @Param from query string false "Start date (YYYY-MM-DD)"
+// @Param to query string false "End date (YYYY-MM-DD)"
+// @Success 200 {object} httpx.Envelope{data=[]models.DateHoliday}
+// @Failure 401 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Router /api/v1/school-days/holidays [get]
 func (h *CalendarHandler) GetDateHolidays(w http.ResponseWriter, r *http.Request) {
 	claims := auth.ClaimsFromContext(r.Context())
 	if claims == nil {
@@ -75,6 +110,19 @@ func (h *CalendarHandler) GetDateHolidays(w http.ResponseWriter, r *http.Request
 	httpx.WriteOK(w, holidays)
 }
 
+// CreateDateHoliday godoc
+// @Summary Add a new holiday/event date
+// @Description Declares a specific date as a holiday or custom school day.
+// @Tags Calendar
+// @Accept json
+// @Produce json
+// @Security Bearer
+// @Param request body models.CreateHolidayRequest true "Holiday creation request"
+// @Success 201 {object} httpx.Envelope{data=models.DateHoliday}
+// @Failure 400 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Failure 401 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Failure 403 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Router /api/v1/school-days/holidays [post]
 func (h *CalendarHandler) CreateDateHoliday(w http.ResponseWriter, r *http.Request) {
 	claims := auth.ClaimsFromContext(r.Context())
 	if claims == nil {
@@ -96,6 +144,19 @@ func (h *CalendarHandler) CreateDateHoliday(w http.ResponseWriter, r *http.Reque
 	httpx.WriteCreated(w, holiday)
 }
 
+// DeleteDateHoliday godoc
+// @Summary Remove a holiday date
+// @Description Deletes a declared holiday/custom date.
+// @Tags Calendar
+// @Accept json
+// @Produce json
+// @Security Bearer
+// @Param id path string true "Holiday ID (UUID)"
+// @Success 204 "No Content"
+// @Failure 400 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Failure 401 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Failure 403 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Router /api/v1/school-days/holidays/{id} [delete]
 func (h *CalendarHandler) DeleteDateHoliday(w http.ResponseWriter, r *http.Request) {
 	claims := auth.ClaimsFromContext(r.Context())
 	if claims == nil {

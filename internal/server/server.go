@@ -13,6 +13,9 @@ import (
 	"github.com/school/attendance-backend/internal/models"
 	"github.com/school/attendance-backend/internal/repository"
 	"github.com/school/attendance-backend/internal/services"
+
+	_ "github.com/school/attendance-backend/docs"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
 func NewRouter(cfg *config.Config, pool *pgxpool.Pool) http.Handler {
@@ -65,6 +68,11 @@ func NewRouter(cfg *config.Config, pool *pgxpool.Pool) http.Handler {
 	r.Use(mw.Logger)
 	r.Use(mw.Recoverer)
 	r.Use(mw.CORS(cfg.CORSAllowedOrigins))
+
+	// ─── Swagger ──────────────────────────────────────────────────────────────
+	r.Get("/swagger/*", httpSwagger.Handler(
+		httpSwagger.URL("/swagger/doc.json"),
+	))
 
 	// ─── Health / readiness ───────────────────────────────────────────────────
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {

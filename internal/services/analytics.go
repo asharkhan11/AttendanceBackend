@@ -56,7 +56,16 @@ func (s *AnalyticsService) ClassSummary(ctx context.Context, classID uuid.UUID, 
 	return summary, nil
 }
 
-func (s *AnalyticsService) StudentSummary(ctx context.Context, studentID uuid.UUID, from, to string) (any, error) {
+type StudentSummaryResponse struct {
+	StudentID  uuid.UUID                      `json:"student_id"`
+	From       string                         `json:"from"`
+	To         string                         `json:"to"`
+	OverallPct float64                        `json:"overall_pct"`
+	BySubject  []*repository.StudentSummaryRow `json:"by_subject"`
+	DailyLog   []*repository.StudentDayRow    `json:"daily_log"`
+}
+
+func (s *AnalyticsService) StudentSummary(ctx context.Context, studentID uuid.UUID, from, to string) (*StudentSummaryResponse, error) {
 	f, t, err := parseDateRange(from, to)
 	if err != nil {
 		return nil, err
@@ -79,13 +88,13 @@ func (s *AnalyticsService) StudentSummary(ctx context.Context, studentID uuid.UU
 	if totalSessions > 0 {
 		overallPct = float64(totalPresent) / float64(totalSessions) * 100
 	}
-	return map[string]any{
-		"student_id":   studentID,
-		"from":         from,
-		"to":           to,
-		"overall_pct":  overallPct,
-		"by_subject":   subjRows,
-		"daily_log":    dayLog,
+	return &StudentSummaryResponse{
+		StudentID:  studentID,
+		From:       from,
+		To:         to,
+		OverallPct: overallPct,
+		BySubject:  subjRows,
+		DailyLog:   dayLog,
 	}, nil
 }
 
@@ -308,7 +317,7 @@ func (s *AnalyticsService) ExportStudentPDF(ctx context.Context, studentID uuid.
 	return buf.Bytes(), nil
 }
 
-func (s *AnalyticsService) SchoolOverview(ctx context.Context, schoolID uuid.UUID, classID *uuid.UUID, academicYearID *uuid.UUID, from, to string, threshold float64) (any, error) {
+func (s *AnalyticsService) SchoolOverview(ctx context.Context, schoolID uuid.UUID, classID *uuid.UUID, academicYearID *uuid.UUID, from, to string, threshold float64) (*repository.SchoolOverviewData, error) {
 	f, t, err := parseDateRange(from, to)
 	if err != nil {
 		return nil, err
@@ -320,7 +329,7 @@ func (s *AnalyticsService) SchoolOverview(ctx context.Context, schoolID uuid.UUI
 	return data, nil
 }
 
-func (s *AnalyticsService) SchoolDefaulters(ctx context.Context, schoolID uuid.UUID, classID *uuid.UUID, from, to string, threshold float64) (any, error) {
+func (s *AnalyticsService) SchoolDefaulters(ctx context.Context, schoolID uuid.UUID, classID *uuid.UUID, from, to string, threshold float64) ([]*repository.SchoolDefaulterRow, error) {
 	f, t, err := parseDateRange(from, to)
 	if err != nil {
 		return nil, err
@@ -332,7 +341,7 @@ func (s *AnalyticsService) SchoolDefaulters(ctx context.Context, schoolID uuid.U
 	return rows, nil
 }
 
-func (s *AnalyticsService) MonthlyMatrix(ctx context.Context, classID uuid.UUID, year, month int) (any, error) {
+func (s *AnalyticsService) MonthlyMatrix(ctx context.Context, classID uuid.UUID, year, month int) (*repository.MonthlyMatrixData, error) {
 	if err := s.checkClassAccess(ctx, classID); err != nil {
 		return nil, err
 	}

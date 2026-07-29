@@ -1,4 +1,7 @@
 @echo off
+echo Generating Swagger/OpenAPI documentation...
+docker run --rm -v "%CD%:/app" -w /app golang:1.22-alpine go run github.com/swaggo/swag/cmd/swag@latest init -g cmd/api/main.go
+echo.
 echo Rebuilding and restarting backend services...
 docker compose -f deployments/docker-compose.yml up --build -d
 echo.
