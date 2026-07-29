@@ -160,11 +160,12 @@ func (s *TeacherService) ResetPassword(ctx context.Context, id uuid.UUID, req *d
 // ─── Student Service ──────────────────────────────────────────────────────────
 
 type StudentService struct {
-	studentRepo *repository.StudentRepo
+	studentRepo     *repository.StudentRepo
+	studentBulkRepo *repository.StudentBulkRepository
 }
 
-func NewStudentService(repo *repository.StudentRepo) *StudentService {
-	return &StudentService{repo}
+func NewStudentService(repo *repository.StudentRepo, bulkRepo *repository.StudentBulkRepository) *StudentService {
+	return &StudentService{studentRepo: repo, studentBulkRepo: bulkRepo}
 }
 
 type AcademicYearService struct {
@@ -383,7 +384,8 @@ func (s *StudentService) BulkImportCSV(ctx context.Context, r io.Reader) (int, [
 	}
 
 	var errs []string
-	count := 0
+	var students []*models.Student
+
 	for i, row := range records[1:] {
 		lineNo := i + 2
 		if len(row) < 5 {
@@ -406,13 +408,18 @@ func (s *StudentService) BulkImportCSV(ctx context.Context, r io.Reader) (int, [
 			g := strings.TrimSpace(row[4])
 			st.Gender = &g
 		}
-		if _, err := s.studentRepo.Create(ctx, st); err != nil {
-			errs = append(errs, fmt.Sprintf("line %d: %s", lineNo, err.Error()))
-			continue
-		}
-		count++
+		students = append(students, st)
 	}
-	return count, errs, nil
+
+	if len(errs) > 0 {
+		return 0, errs, nil
+	}
+
+	if err := s.studentBulkRepo.BulkCreate(ctx, students); err != nil {
+		return 0, nil, apperror.Internal(err)
+	}
+
+	return len(students), nil, nil
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

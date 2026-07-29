@@ -30,22 +30,25 @@ type RosterEntry struct {
 }
 
 type AttendanceService struct {
-	attendanceRepo *repository.AttendanceRepo
-	studentRepo    *repository.StudentRepo
-	classRepo      *repository.ClassRepo
-	whatsappRepo   *repository.WhatsAppRepo
-	whatsappClient *WhatsAppClient
+	attendanceRepo     *repository.AttendanceRepo
+	attendanceBulkRepo *repository.AttendanceBulkRepository
+	studentRepo        *repository.StudentRepo
+	classRepo          *repository.ClassRepo
+	whatsappRepo       *repository.WhatsAppRepo
+	whatsappClient     *WhatsAppClient
 }
 
 func NewAttendanceService(
 	attendanceRepo *repository.AttendanceRepo,
+	attendanceBulkRepo *repository.AttendanceBulkRepository,
 	studentRepo *repository.StudentRepo,
 	classRepo *repository.ClassRepo,
 ) *AttendanceService {
 	return &AttendanceService{
-		attendanceRepo: attendanceRepo,
-		studentRepo:    studentRepo,
-		classRepo:      classRepo,
+		attendanceRepo:     attendanceRepo,
+		attendanceBulkRepo: attendanceBulkRepo,
+		studentRepo:        studentRepo,
+		classRepo:          classRepo,
 	}
 }
 
@@ -188,13 +191,18 @@ func (s *AttendanceService) BulkMark(ctx context.Context, sessionID uuid.UUID, r
 		return apperror.Validation(fmt.Sprintf("student IDs not in this class: %v", invalidIDs))
 	}
 
-	// All valid — upsert each record
+	// All valid — upsert records in bulk using pgx.Batch
+	marks := make([]repository.AttendanceMark, len(req.Marks))
 	for i, m := range req.Marks {
 		sid := ids[i]
-		status := models.AttendanceStatus(m.Status)
-		if err := s.attendanceRepo.UpsertRecord(ctx, claims.SchoolID, sessionID, sid, status, m.Remarks, userID); err != nil {
-			return apperror.Internal(fmt.Errorf("upsert record for %s: %w", sid, err))
+		marks[i] = repository.AttendanceMark{
+			StudentID: sid,
+			Status:    models.AttendanceStatus(m.Status),
+			Remarks:   m.Remarks,
 		}
+	}
+	if err := s.attendanceBulkRepo.BulkUpsertRecords(ctx, claims.SchoolID, sessionID, marks, userID); err != nil {
+		return apperror.Internal(fmt.Errorf("bulk upsert records: %w", err))
 	}
 
 	s.ProcessWhatsAppNotificationsForSession(ctx, sessionID, claims.SchoolID)
