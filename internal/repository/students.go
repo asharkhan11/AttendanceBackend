@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/school/attendance-backend/internal/models"
 )
+
 
 type StudentRepo struct{ db *DB }
 
@@ -174,38 +176,31 @@ type NextStudentInfo struct {
 
 func (r *StudentRepo) GetNextStudentInfo(ctx context.Context, schoolID, classID uuid.UUID) (*NextStudentInfo, error) {
 	// 1. Determine next admission number for school
-	rows, err := r.q(ctx).Query(ctx, `SELECT admission_number FROM students WHERE school_id=$1`, schoolID)
-	if err != nil {
-		return nil, fmt.Errorf("get admission numbers: %w", err)
-	}
-	maxAdmNum := 0
+	var lastAdm string
+	err := r.q(ctx).QueryRow(ctx,
+		`SELECT admission_number 
+		 FROM students 
+		 WHERE school_id = $1 AND admission_number ~ '\d+$'
+		 ORDER BY (substring(admission_number from '\d+$'))::integer DESC 
+		 LIMIT 1`, schoolID).Scan(&lastAdm)
+
 	admPrefix := "ADM"
 	admPad := 3
-	hasAdm := false
+	nextAdm := fmt.Sprintf("%s%0*d", admPrefix, admPad, 1)
 
-	for rows.Next() {
-		var adm string
-		if err := rows.Scan(&adm); err == nil {
-			hasAdm = true
-			prefix, num, pad := extractNumberSuffix(adm)
-			if num > maxAdmNum {
-				maxAdmNum = num
-				if prefix != "" {
-					admPrefix = prefix
-				}
-				if pad > 0 {
-					admPad = pad
-				}
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("get max admission number: %w", err)
+	}
+
+	if err == nil {
+		prefix, num, pad := extractNumberSuffix(lastAdm)
+		if num >= 0 {
+			if pad > 0 {
+				nextAdm = fmt.Sprintf("%s%0*d", prefix, pad, num+1)
+			} else {
+				nextAdm = fmt.Sprintf("%s%d", prefix, num+1)
 			}
 		}
-	}
-	rows.Close()
-
-	var nextAdm string
-	if !hasAdm || maxAdmNum == 0 {
-		nextAdm = fmt.Sprintf("%s%0*d", admPrefix, admPad, 1)
-	} else {
-		nextAdm = fmt.Sprintf("%s%0*d", admPrefix, admPad, maxAdmNum+1)
 	}
 
 	// 2. Determine last roll number for class
