@@ -139,14 +139,9 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID uuid.UUID, req *
 }
 
 func (s *AuthService) ChangePassword(ctx context.Context, userID uuid.UUID, req *dto.ChangePasswordRequest) error {
-	user, _, _, err := s.userRepo.GetByIDNoRLS(ctx, userID)
+	currentHash, err := s.userRepo.GetPasswordHashByID(ctx, userID)
 	if err != nil {
 		return apperror.NotFound("user")
-	}
-
-	_, currentHash, err := s.userRepo.GetByEmail(ctx, user.SchoolID, user.Email)
-	if err != nil {
-		return apperror.Internal(fmt.Errorf("fetch password: %w", err))
 	}
 
 	match, err := s.passSvc.VerifyPassword(req.CurrentPassword, currentHash)

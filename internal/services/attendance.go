@@ -295,38 +295,52 @@ func (s *AttendanceService) ProcessWhatsAppNotificationsForSession(ctx context.C
 		bgCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 
-		txCtx, tx, err := s.whatsappRepo.Db().WithTenantTx(bgCtx, schID.String())
-		if err != nil {
-			log.Printf("error starting tenant tx for whatsapp notifications: %v", err)
-			return
-		}
-		defer func() { _ = tx.Rollback(txCtx) }()
+		var absentStudents []repository.AbsentStudentNotificationInfo
+		var enabled bool
+		var monthlyLimit int
+		var sentCount int
 
-		log.Printf("[WhatsApp debug] Goroutine started. Querying absent students for session: %s", sid)
-		absentStudents, err := s.whatsappRepo.GetAbsentStudentsForSession(txCtx, sid)
-		log.Printf("[WhatsApp debug] GetAbsentStudentsForSession returned count: %d, err: %v", len(absentStudents), err)
+		// 1. Fetch all necessary data inside a quick, dedicated database transaction
+		err := func() error {
+			txCtx, tx, err := s.whatsappRepo.Db().WithTenantTx(bgCtx, schID.String())
+			if err != nil {
+				return fmt.Errorf("begin tenant tx: %w", err)
+			}
+			defer func() { _ = tx.Rollback(txCtx) }()
+
+			absentStudents, err = s.whatsappRepo.GetAbsentStudentsForSession(txCtx, sid)
+			if err != nil {
+				return fmt.Errorf("fetch absent students: %w", err)
+			}
+			if len(absentStudents) == 0 {
+				return nil
+			}
+
+			schoolID := absentStudents[0].SchoolID
+			enabled, monthlyLimit, err = s.whatsappRepo.GetSchoolWhatsAppConfig(txCtx, schoolID)
+			if err != nil {
+				return fmt.Errorf("fetch school whatsapp config: %w", err)
+			}
+
+			now := time.Now()
+			sentCount, err = s.whatsappRepo.GetMonthlySentCount(txCtx, schoolID, now.Year(), now.Month())
+			if err != nil {
+				return fmt.Errorf("fetch monthly sent count: %w", err)
+			}
+
+			return tx.Commit(txCtx)
+		}()
+
 		if err != nil {
-			log.Printf("error fetching absent students for session %s: %v", sid, err)
+			log.Printf("error fetching database info for whatsapp notifications: %v", err)
 			return
 		}
+
 		if len(absentStudents) == 0 {
 			return
 		}
 
-		schoolID := absentStudents[0].SchoolID
-		enabled, monthlyLimit, err := s.whatsappRepo.GetSchoolWhatsAppConfig(txCtx, schoolID)
-		if err != nil {
-			log.Printf("error fetching school whatsapp config for %s: %v", schoolID, err)
-			return
-		}
-
-		now := time.Now()
-		sentCount, err := s.whatsappRepo.GetMonthlySentCount(txCtx, schoolID, now.Year(), now.Month())
-		if err != nil {
-			log.Printf("error fetching monthly sent count for %s: %v", schoolID, err)
-			return
-		}
-
+		// 2. Iterate outside the long transaction and execute HTTP calls
 		for _, student := range absentStudents {
 			logEntry := &models.WhatsAppLog{
 				SchoolID:       student.SchoolID,
@@ -339,7 +353,7 @@ func (s *AttendanceService) ProcessWhatsAppNotificationsForSession(ctx context.C
 				logEntry.Status = "skipped_disabled"
 				errMsg := "WhatsApp messaging disabled for school"
 				logEntry.ErrorMessage = &errMsg
-				_ = s.whatsappRepo.LogWhatsAppMessage(txCtx, logEntry)
+				_ = s.whatsappRepo.LogWhatsAppMessage(bgCtx, logEntry)
 				continue
 			}
 
@@ -347,7 +361,7 @@ func (s *AttendanceService) ProcessWhatsAppNotificationsForSession(ctx context.C
 				logEntry.Status = "missing_phone"
 				errMsg := "Student guardian phone number is missing"
 				logEntry.ErrorMessage = &errMsg
-				_ = s.whatsappRepo.LogWhatsAppMessage(txCtx, logEntry)
+				_ = s.whatsappRepo.LogWhatsAppMessage(bgCtx, logEntry)
 				continue
 			}
 
@@ -355,12 +369,12 @@ func (s *AttendanceService) ProcessWhatsAppNotificationsForSession(ctx context.C
 				logEntry.Status = "skipped_rate_limit"
 				errMsg := fmt.Sprintf("Monthly rate limit of %d messages reached (sent: %d)", monthlyLimit, sentCount)
 				logEntry.ErrorMessage = &errMsg
-				_ = s.whatsappRepo.LogWhatsAppMessage(txCtx, logEntry)
+				_ = s.whatsappRepo.LogWhatsAppMessage(bgCtx, logEntry)
 				continue
 			}
 
 			dateStr := student.SessionDate.Format("02 Jan 2006")
-			msgID, sendErr := s.whatsappClient.SendAbsentNotification(txCtx, student.GuardianPhone, student.StudentName, dateStr, student.SchoolName)
+			msgID, sendErr := s.whatsappClient.SendAbsentNotification(bgCtx, student.GuardianPhone, student.StudentName, dateStr, student.SchoolName)
 			if sendErr != nil {
 				logEntry.Status = "failed"
 				errMsg := sendErr.Error()
@@ -371,11 +385,7 @@ func (s *AttendanceService) ProcessWhatsAppNotificationsForSession(ctx context.C
 				sentCount++
 			}
 
-			_ = s.whatsappRepo.LogWhatsAppMessage(txCtx, logEntry)
-		}
-
-		if err := tx.Commit(txCtx); err != nil {
-			log.Printf("error committing transaction for whatsapp notifications: %v", err)
+			_ = s.whatsappRepo.LogWhatsAppMessage(bgCtx, logEntry)
 		}
 	}(sessionID, schoolID)
 }

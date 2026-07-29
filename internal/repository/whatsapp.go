@@ -177,13 +177,28 @@ func (r *WhatsAppRepo) UpdateWhatsAppLogStatusByMetaID(ctx context.Context, meta
 		return err
 	}
 
-	_, err := r.db.Pool().Exec(ctx,
+	var schoolID *uuid.UUID
+	err := r.db.Pool().QueryRow(ctx, `SELECT get_whatsapp_log_school_id($1)`, metaMsgID).Scan(&schoolID)
+	if err != nil {
+		return fmt.Errorf("resolve school for meta message id: %w", err)
+	}
+	if schoolID == nil {
+		return fmt.Errorf("whatsapp log not found for message id %s", metaMsgID)
+	}
+
+	tenantCtx, tenantTx, err := r.db.WithTenantTx(ctx, schoolID.String())
+	if err != nil {
+		return fmt.Errorf("begin tenant tx for update status: %w", err)
+	}
+	defer tenantTx.Rollback(tenantCtx)
+
+	_, err = tenantTx.Exec(tenantCtx,
 		`UPDATE whatsapp_logs 
 		 SET status = $1, error_message = $2 
 		 WHERE meta_message_id = $3`,
 		status, errMsg, metaMsgID)
 	if err != nil {
-		return fmt.Errorf("update whatsapp log status by meta message id: %w", err)
+		return fmt.Errorf("update whatsapp log status: %w", err)
 	}
-	return nil
+	return tenantTx.Commit(tenantCtx)
 }

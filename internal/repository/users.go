@@ -127,6 +127,16 @@ func (r *UserRepo) UpdatePasswordHash(ctx context.Context, id uuid.UUID, hash st
 	return err
 }
 
+func (r *UserRepo) GetPasswordHashByID(ctx context.Context, id uuid.UUID) (string, error) {
+	var hash string
+	err := r.q(ctx).QueryRow(ctx,
+		`SELECT password_hash FROM users WHERE id=$1`, id).Scan(&hash)
+	if err != nil {
+		return "", err
+	}
+	return hash, nil
+}
+
 // StoreRefreshToken saves a hashed refresh token.
 // Uses the pool directly — refresh_tokens has no RLS, and this is called at login
 // before a tenant transaction exists in context.
