@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/school/attendance-backend/internal/models"
 )
 
@@ -13,7 +12,8 @@ type UserRepo struct{ db *DB }
 
 func NewUserRepo(db *DB) *UserRepo { return &UserRepo{db: db} }
 
-func (r *UserRepo) q(ctx context.Context) pgx.Tx { return r.db.Querier(ctx) }
+func (r *UserRepo) Db() *DB { return r.db }
+func (r *UserRepo) q(ctx context.Context) DBTX { return r.db.Querier(ctx) }
 
 func (r *UserRepo) GetByEmail(ctx context.Context, schoolID uuid.UUID, email string) (*models.User, string, error) {
 	// Called during login: we must set app.current_school_id for RLS even though

@@ -14,7 +14,8 @@ import (
 type AcademicYearRepo struct{ db *DB }
 
 func NewAcademicYearRepo(db *DB) *AcademicYearRepo { return &AcademicYearRepo{db: db} }
-func (r *AcademicYearRepo) q(ctx context.Context) pgx.Tx   { return r.db.Querier(ctx) }
+func (r *AcademicYearRepo) Db() *DB { return r.db }
+func (r *AcademicYearRepo) q(ctx context.Context) DBTX   { return r.db.Querier(ctx) }
 
 func (r *AcademicYearRepo) Create(ctx context.Context, schoolID uuid.UUID, name string, start, end time.Time, isCurrent bool) (*models.AcademicYear, error) {
 	var ay models.AcademicYear
@@ -144,7 +145,8 @@ type ClassWithTeacher struct {
 type ClassRepo struct{ db *DB }
 
 func NewClassRepo(db *DB) *ClassRepo { return &ClassRepo{db: db} }
-func (r *ClassRepo) q(ctx context.Context) pgx.Tx   { return r.db.Querier(ctx) }
+func (r *ClassRepo) Db() *DB { return r.db }
+func (r *ClassRepo) q(ctx context.Context) DBTX   { return r.db.Querier(ctx) }
 
 func (r *ClassRepo) Create(ctx context.Context, schoolID, academicYearID uuid.UUID, gradeLevel int16, section string, classTeacherID *uuid.UUID) (*ClassWithTeacher, error) {
 	var c models.Class

@@ -83,7 +83,13 @@ func (s *AttendanceService) CreateSession(ctx context.Context, req *dto.CreateSe
 		period = *req.PeriodNumber
 	}
 
-	session, created, err := s.attendanceRepo.GetOrCreateSession(ctx, claims.SchoolID, classID, userID, date, period)
+	var session *models.AttendanceSession
+	var created bool
+	err = s.attendanceRepo.Db().RunInTx(ctx, claims.SchoolID.String(), func(ctx context.Context) error {
+		var err error
+		session, created, err = s.attendanceRepo.GetOrCreateSession(ctx, claims.SchoolID, classID, userID, date, period)
+		return err
+	})
 	if err != nil {
 		return nil, false, apperror.Internal(fmt.Errorf("get or create session: %w", err))
 	}
@@ -201,7 +207,10 @@ func (s *AttendanceService) BulkMark(ctx context.Context, sessionID uuid.UUID, r
 			Remarks:   m.Remarks,
 		}
 	}
-	if err := s.attendanceBulkRepo.BulkUpsertRecords(ctx, claims.SchoolID, sessionID, marks, userID); err != nil {
+	err = s.attendanceRepo.Db().RunInTx(ctx, claims.SchoolID.String(), func(ctx context.Context) error {
+		return s.attendanceBulkRepo.BulkUpsertRecords(ctx, claims.SchoolID, sessionID, marks, userID)
+	})
+	if err != nil {
 		return apperror.Internal(fmt.Errorf("bulk upsert records: %w", err))
 	}
 
@@ -231,7 +240,10 @@ func (s *AttendanceService) SingleMark(ctx context.Context, sessionID, studentID
 	}
 
 	status := models.AttendanceStatus(req.Status)
-	if err := s.attendanceRepo.UpdateRecordWithAudit(ctx, claims.SchoolID, sessionID, studentID, status, req.Remarks, userID); err != nil {
+	err = s.attendanceRepo.Db().RunInTx(ctx, claims.SchoolID.String(), func(ctx context.Context) error {
+		return s.attendanceRepo.UpdateRecordWithAudit(ctx, claims.SchoolID, sessionID, studentID, status, req.Remarks, userID)
+	})
+	if err != nil {
 		return apperror.Internal(err)
 	}
 	return nil
@@ -252,7 +264,10 @@ func (s *AttendanceService) CloseSession(ctx context.Context, sessionID uuid.UUI
 		}
 	}
 
-	if err := s.attendanceRepo.CloseSession(ctx, sessionID); err != nil {
+	err = s.attendanceRepo.Db().RunInTx(ctx, claims.SchoolID.String(), func(ctx context.Context) error {
+		return s.attendanceRepo.CloseSession(ctx, sessionID)
+	})
+	if err != nil {
 		return err
 	}
 	s.ProcessWhatsAppNotificationsForSession(ctx, sessionID, claims.SchoolID)
@@ -274,7 +289,10 @@ func (s *AttendanceService) ReopenSession(ctx context.Context, sessionID uuid.UU
 		}
 	}
 
-	return s.attendanceRepo.ReopenSession(ctx, sessionID)
+	err = s.attendanceRepo.Db().RunInTx(ctx, claims.SchoolID.String(), func(ctx context.Context) error {
+		return s.attendanceRepo.ReopenSession(ctx, sessionID)
+	})
+	return err
 }
 
 func (s *AttendanceService) ProcessWhatsAppNotificationsForSession(ctx context.Context, sessionID, schoolID uuid.UUID) {

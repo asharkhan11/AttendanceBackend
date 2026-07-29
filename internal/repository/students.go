@@ -15,7 +15,8 @@ import (
 type StudentRepo struct{ db *DB }
 
 func NewStudentRepo(db *DB) *StudentRepo { return &StudentRepo{db: db} }
-func (r *StudentRepo) q(ctx context.Context) pgx.Tx { return r.db.Querier(ctx) }
+func (r *StudentRepo) Db() *DB { return r.db }
+func (r *StudentRepo) q(ctx context.Context) DBTX { return r.db.Querier(ctx) }
 
 func (r *StudentRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.Student, error) {
 	row := r.q(ctx).QueryRow(ctx,

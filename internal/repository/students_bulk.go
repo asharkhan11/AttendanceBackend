@@ -17,12 +17,8 @@ func NewStudentBulkRepository(db *DB) *StudentBulkRepository {
 	return &StudentBulkRepository{db: db}
 }
 
-func (r *StudentBulkRepository) q(ctx context.Context) pgx.Tx {
-	return r.db.Querier(ctx)
-}
-
 func (r *StudentBulkRepository) BulkCreate(ctx context.Context, students []*models.Student) error {
-	tx := r.q(ctx)
+	tx := TxFromContext(ctx)
 	if tx == nil {
 		return fmt.Errorf("no active transaction in context")
 	}

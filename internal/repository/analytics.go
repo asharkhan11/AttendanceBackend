@@ -6,13 +6,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 type AnalyticsRepo struct{ db *DB }
 
 func NewAnalyticsRepo(db *DB) *AnalyticsRepo { return &AnalyticsRepo{db: db} }
-func (r *AnalyticsRepo) q(ctx context.Context) pgx.Tx { return r.db.Querier(ctx) }
+func (r *AnalyticsRepo) Db() *DB { return r.db }
+func (r *AnalyticsRepo) q(ctx context.Context) DBTX { return r.db.Querier(ctx) }
 
 // ClassSummaryData is the overall attendance metrics for a class.
 type ClassSummaryData struct {

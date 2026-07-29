@@ -23,12 +23,8 @@ func NewAttendanceBulkRepository(db *DB) *AttendanceBulkRepository {
 	return &AttendanceBulkRepository{db: db}
 }
 
-func (r *AttendanceBulkRepository) q(ctx context.Context) pgx.Tx {
-	return r.db.Querier(ctx)
-}
-
 func (r *AttendanceBulkRepository) BulkUpsertRecords(ctx context.Context, schoolID, sessionID uuid.UUID, marks []AttendanceMark, markedBy uuid.UUID) error {
-	tx := r.q(ctx)
+	tx := TxFromContext(ctx)
 	if tx == nil {
 		return fmt.Errorf("no active transaction in context")
 	}
