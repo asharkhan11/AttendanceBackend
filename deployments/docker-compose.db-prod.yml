@@ -1,0 +1,47 @@
+services:
+  # ── PostgreSQL Database Container ──────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: attendance-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-attendance}
+      POSTGRES_USER: ${POSTGRES_USER:-attendance_owner}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-AttendanceOwner2026}
+
+    ports:
+      - "0.0.0.0:5432:5432"
+
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../scripts/init_db.sql:/docker-entrypoint-initdb.d/00_init_db.sql:ro
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-attendance_owner} -d $${POSTGRES_DB:-attendance}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # ── Database Migration & Seed Runner ───────────────────────────────────────
+  db-init:
+    container_name: attendance-db-init
+    image: attendance-db-init:latest
+
+    environment:
+      MIGRATE_DATABASE_URL: ${MIGRATE_DATABASE_URL:-postgres://attendance_owner:${POSTGRES_PASSWORD:-AttendanceOwner2026}@postgres:5432/${POSTGRES_DB:-attendance}?sslmode=disable}
+      DATABASE_URL: ${DATABASE_URL:-postgres://attendance_owner:${POSTGRES_PASSWORD:-AttendanceOwner2026}@postgres:5432/${POSTGRES_DB:-attendance}?sslmode=disable}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    restart: "no"
+
+volumes:
+  pgdata:

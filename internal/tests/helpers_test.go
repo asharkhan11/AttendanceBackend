@@ -49,6 +49,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	os.Setenv("RATE_LIMIT_LOGIN_PER_MIN", "1000")
 	os.Setenv("PORT", "0")
 	os.Setenv("ENV", "development")
+	os.Setenv("ENABLE_WHATSAPP", "true")
 
 	cfg, err := config.Load()
 	if err != nil {

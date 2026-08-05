@@ -43,12 +43,14 @@ func ensureWhatsAppSchema(t *testing.T, pool *pgxpool.Pool) {
 
 func TestProductionConfig_FailFastValidation(t *testing.T) {
 	os.Setenv("ENV", "production")
+	os.Setenv("ENABLE_WHATSAPP", "true")
 	os.Setenv("DATABASE_URL", "postgres://user:pass@localhost/db")
 	os.Setenv("JWT_SECRET", "test-secret-key-at-least-32-chars-long")
 	os.Setenv("WHATSAPP_API_TOKEN", "")
 	os.Setenv("WHATSAPP_PHONE_NUMBER_ID", "")
 	defer func() {
 		os.Setenv("ENV", "development")
+		os.Setenv("ENABLE_WHATSAPP", "false")
 	}()
 
 	_, err := config.Load()

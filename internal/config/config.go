@@ -23,6 +23,7 @@ type Config struct {
 	RateLimitLoginPerMin int
 
 	// Meta WhatsApp Cloud API Configuration
+	EnableWhatsApp             bool
 	WhatsAppAPIToken           string
 	WhatsAppPhoneNumberID      string
 	WhatsAppTemplateName       string
@@ -97,6 +98,7 @@ func Load() (*Config, error) {
 	}
 	cfg.RateLimitLoginPerMin = rl
 
+	cfg.EnableWhatsApp = strings.EqualFold(getEnv("ENABLE_WHATSAPP", "false"), "true")
 	cfg.WhatsAppAPIToken = getEnv("WHATSAPP_API_TOKEN", os.Getenv("WHATSAPP_PERMANENT_TOKEN"))
 	cfg.WhatsAppPhoneNumberID = getEnv("WHATSAPP_PHONE_NUMBER_ID", "")
 	cfg.WhatsAppTemplateName = getEnv("WHATSAPP_TEMPLATE_NAME", "absent_student_notification")
@@ -108,7 +110,7 @@ func Load() (*Config, error) {
 	cfg.WhatsAppWebhookVerifyToken = getEnv("WHATSAPP_WEBHOOK_VERIFY_TOKEN", "")
 	cfg.DefaultCountryCode = getEnv("DEFAULT_COUNTRY_CODE", "91")
 
-	if cfg.Env == "production" {
+	if cfg.Env == "production" && cfg.EnableWhatsApp {
 		if cfg.WhatsAppAPIToken == "" {
 			return nil, fmt.Errorf("WHATSAPP_API_TOKEN is required when ENV=production (or set WHATSAPP_PERMANENT_TOKEN)")
 		}

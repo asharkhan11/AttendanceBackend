@@ -14,6 +14,7 @@ func TestConfig_ProductionValidation(t *testing.T) {
 	origEnv := os.Getenv("ENV")
 	origDB := os.Getenv("DATABASE_URL")
 	origJWT := os.Getenv("JWT_SECRET")
+	origEnable := os.Getenv("ENABLE_WHATSAPP")
 	origToken := os.Getenv("WHATSAPP_API_TOKEN")
 	origPhone := os.Getenv("WHATSAPP_PHONE_NUMBER_ID")
 	origVerify := os.Getenv("WHATSAPP_WEBHOOK_VERIFY_TOKEN")
@@ -23,6 +24,7 @@ func TestConfig_ProductionValidation(t *testing.T) {
 		os.Setenv("ENV", origEnv)
 		os.Setenv("DATABASE_URL", origDB)
 		os.Setenv("JWT_SECRET", origJWT)
+		os.Setenv("ENABLE_WHATSAPP", origEnable)
 		os.Setenv("WHATSAPP_API_TOKEN", origToken)
 		os.Setenv("WHATSAPP_PHONE_NUMBER_ID", origPhone)
 		os.Setenv("WHATSAPP_WEBHOOK_VERIFY_TOKEN", origVerify)
@@ -33,12 +35,22 @@ func TestConfig_ProductionValidation(t *testing.T) {
 	os.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/db")
 	os.Setenv("JWT_SECRET", "this-is-a-very-long-test-jwt-secret-key-32-bytes")
 
+	// 1. WhatsApp disabled (ENABLE_WHATSAPP=false) -> Load succeeds even with missing tokens
+	os.Setenv("ENABLE_WHATSAPP", "false")
+	os.Setenv("WHATSAPP_API_TOKEN", "")
+	cfgDisabled, err := config.Load()
+	require.NoError(t, err)
+	assert.False(t, cfgDisabled.EnableWhatsApp)
+
+	// 2. WhatsApp enabled (ENABLE_WHATSAPP=true) -> Fail-fast validation applies
+	os.Setenv("ENABLE_WHATSAPP", "true")
+
 	// Missing WHATSAPP_API_TOKEN
 	os.Setenv("WHATSAPP_API_TOKEN", "")
 	os.Setenv("WHATSAPP_PHONE_NUMBER_ID", "123456789")
 	os.Setenv("WHATSAPP_WEBHOOK_VERIFY_TOKEN", "vtoken")
 	os.Setenv("WHATSAPP_APP_SECRET", "appsecret")
-	_, err := config.Load()
+	_, err = config.Load()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "WHATSAPP_API_TOKEN")
 
@@ -67,6 +79,7 @@ func TestConfig_ProductionValidation(t *testing.T) {
 	os.Setenv("WHATSAPP_APP_SECRET", "appsecret")
 	cfg, err := config.Load()
 	require.NoError(t, err)
+	assert.True(t, cfg.EnableWhatsApp)
 	assert.Equal(t, "my_token", cfg.WhatsAppAPIToken)
 	assert.Equal(t, "123456789", cfg.WhatsAppPhoneNumberID)
 	assert.Equal(t, "vtoken", cfg.WhatsAppWebhookVerifyToken)

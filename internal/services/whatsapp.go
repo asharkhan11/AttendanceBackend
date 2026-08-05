@@ -19,6 +19,7 @@ import (
 var nonDigitRegex = regexp.MustCompile(`[^\d+]`)
 
 type WhatsAppClient struct {
+	enabled            bool
 	env                string
 	apiURL             string
 	token              string
@@ -31,6 +32,7 @@ type WhatsAppClient struct {
 
 func NewWhatsAppClient(cfg *config.Config) *WhatsAppClient {
 	return &WhatsAppClient{
+		enabled:            cfg.EnableWhatsApp,
 		env:                cfg.Env,
 		apiURL:             strings.TrimRight(cfg.WhatsAppAPIURL, "/"),
 		token:              cfg.WhatsAppAPIToken,
@@ -42,6 +44,10 @@ func NewWhatsAppClient(cfg *config.Config) *WhatsAppClient {
 			Timeout: 10 * time.Second,
 		},
 	}
+}
+
+func (c *WhatsAppClient) IsEnabled() bool {
+	return c.enabled
 }
 
 type metaTextParam struct {
@@ -111,6 +117,11 @@ func (c *WhatsAppClient) SendAbsentNotification(
 	phone := CleanPhoneNumber(recipientPhone, c.defaultCountryCode)
 	if phone == "" {
 		return "", fmt.Errorf("recipient phone number is empty or invalid after formatting")
+	}
+
+	if !c.enabled {
+		log.Printf("[WhatsApp] Service disabled (ENABLE_WHATSAPP=false). Skipping send to %s for student %s on %s", phone, studentName, dateStr)
+		return "disabled", nil
 	}
 
 	if c.token == "" || c.phoneNumberID == "" {

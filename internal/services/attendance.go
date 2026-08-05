@@ -313,7 +313,7 @@ func (s *AttendanceService) ReopenSession(ctx context.Context, sessionID uuid.UU
 
 func (s *AttendanceService) ProcessWhatsAppNotificationsForSession(ctx context.Context, sessionID, schoolID uuid.UUID) {
 	log.Printf("[WhatsApp debug] ProcessWhatsAppNotificationsForSession called. sessionID: %s, schoolID: %s, repo: %v, client: %v", sessionID, schoolID, s.whatsappRepo != nil, s.whatsappClient != nil)
-	if s.whatsappRepo == nil || s.whatsappClient == nil {
+	if s.whatsappRepo == nil || s.whatsappClient == nil || !s.whatsappClient.IsEnabled() {
 		return
 	}
 

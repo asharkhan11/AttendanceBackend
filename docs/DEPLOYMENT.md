@@ -108,16 +108,17 @@ DB_MIN_CONNS=4
 DB_MAX_CONN_IDLE_TIME=30m
 DB_MAX_CONN_LIFETIME=1h
 
-# WhatsApp Cloud API Credentials (Required when ENV=production)
-WHATSAPP_API_TOKEN=your_whatsapp_token
-WHATSAPP_PHONE_NUMBER_ID=your_phone_number_id
-WHATSAPP_APP_ID=your_app_id
-WHATSAPP_APP_SECRET=your_app_secret
-WHATSAPP_WABA_ID=your_waba_id
-WHATSAPP_WEBHOOK_VERIFY_TOKEN=your_verify_token
-WHATSAPP_TEMPLATE_NAME=absent_student_notification
-WHATSAPP_TEMPLATE_LANG=en
-DEFAULT_COUNTRY_CODE=91
+# Meta WhatsApp Cloud API Configuration (Disabled by default; set ENABLE_WHATSAPP=true to enable)
+ENABLE_WHATSAPP=false
+# WHATSAPP_API_TOKEN=your_whatsapp_token
+# WHATSAPP_PHONE_NUMBER_ID=your_phone_number_id
+# WHATSAPP_APP_ID=your_app_id
+# WHATSAPP_APP_SECRET=your_app_secret
+# WHATSAPP_WABA_ID=your_waba_id
+# WHATSAPP_WEBHOOK_VERIFY_TOKEN=your_verify_token
+# WHATSAPP_TEMPLATE_NAME=absent_student_notification
+# WHATSAPP_TEMPLATE_LANG=en
+# DEFAULT_COUNTRY_CODE=91
 
 DOCKER_IMAGE_API=YOUR_DOCKERHUB_USERNAME/attendance-api:latest
 EOF
