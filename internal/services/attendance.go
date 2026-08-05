@@ -30,22 +30,25 @@ type RosterEntry struct {
 }
 
 type AttendanceService struct {
-	attendanceRepo *repository.AttendanceRepo
-	studentRepo    *repository.StudentRepo
-	classRepo      *repository.ClassRepo
-	whatsappRepo   *repository.WhatsAppRepo
-	whatsappClient *WhatsAppClient
+	attendanceRepo     *repository.AttendanceRepo
+	attendanceBulkRepo *repository.AttendanceBulkRepository
+	studentRepo        *repository.StudentRepo
+	classRepo          *repository.ClassRepo
+	whatsappRepo       *repository.WhatsAppRepo
+	whatsappClient     *WhatsAppClient
 }
 
 func NewAttendanceService(
 	attendanceRepo *repository.AttendanceRepo,
+	attendanceBulkRepo *repository.AttendanceBulkRepository,
 	studentRepo *repository.StudentRepo,
 	classRepo *repository.ClassRepo,
 ) *AttendanceService {
 	return &AttendanceService{
-		attendanceRepo: attendanceRepo,
-		studentRepo:    studentRepo,
-		classRepo:      classRepo,
+		attendanceRepo:     attendanceRepo,
+		attendanceBulkRepo: attendanceBulkRepo,
+		studentRepo:        studentRepo,
+		classRepo:          classRepo,
 	}
 }
 
@@ -80,7 +83,21 @@ func (s *AttendanceService) CreateSession(ctx context.Context, req *dto.CreateSe
 		period = *req.PeriodNumber
 	}
 
-	session, created, err := s.attendanceRepo.GetOrCreateSession(ctx, claims.SchoolID, classID, userID, date, period)
+	var isArchived bool
+	_ = s.attendanceRepo.Db().Querier(ctx).QueryRow(ctx,
+		`SELECT ay.is_archived FROM classes c JOIN academic_years ay ON c.academic_year_id = ay.id WHERE c.id = $1`,
+		classID).Scan(&isArchived)
+	if isArchived {
+		return nil, false, apperror.Forbidden("academic year is archived (read-only)")
+	}
+
+	var session *models.AttendanceSession
+	var created bool
+	err = s.attendanceRepo.Db().RunInTx(ctx, claims.SchoolID.String(), func(ctx context.Context) error {
+		var err error
+		session, created, err = s.attendanceRepo.GetOrCreateSession(ctx, claims.SchoolID, classID, userID, date, period)
+		return err
+	})
 	if err != nil {
 		return nil, false, apperror.Internal(fmt.Errorf("get or create session: %w", err))
 	}
@@ -153,6 +170,14 @@ func (s *AttendanceService) BulkMark(ctx context.Context, sessionID uuid.UUID, r
 		return apperror.NotFound("session")
 	}
 
+	var isArchived bool
+	_ = s.attendanceRepo.Db().Querier(ctx).QueryRow(ctx,
+		`SELECT ay.is_archived FROM classes c JOIN academic_years ay ON c.academic_year_id = ay.id WHERE c.id = $1`,
+		session.ClassID).Scan(&isArchived)
+	if isArchived {
+		return apperror.Forbidden("academic year is archived (read-only)")
+	}
+
 	if claims.Role == models.RoleTeacher {
 		myClass, err := s.classRepo.GetByTeacherID(ctx, claims.SchoolID, userID)
 		if err != nil || myClass.Class.ID != session.ClassID {
@@ -188,16 +213,24 @@ func (s *AttendanceService) BulkMark(ctx context.Context, sessionID uuid.UUID, r
 		return apperror.Validation(fmt.Sprintf("student IDs not in this class: %v", invalidIDs))
 	}
 
-	// All valid — upsert each record
+	// All valid — upsert records in bulk using pgx.Batch
+	marks := make([]repository.AttendanceMark, len(req.Marks))
 	for i, m := range req.Marks {
 		sid := ids[i]
-		status := models.AttendanceStatus(m.Status)
-		if err := s.attendanceRepo.UpsertRecord(ctx, claims.SchoolID, sessionID, sid, status, m.Remarks, userID); err != nil {
-			return apperror.Internal(fmt.Errorf("upsert record for %s: %w", sid, err))
+		marks[i] = repository.AttendanceMark{
+			StudentID: sid,
+			Status:    models.AttendanceStatus(m.Status),
+			Remarks:   m.Remarks,
 		}
 	}
+	err = s.attendanceRepo.Db().RunInTx(ctx, claims.SchoolID.String(), func(ctx context.Context) error {
+		return s.attendanceBulkRepo.BulkUpsertRecords(ctx, claims.SchoolID, sessionID, marks, userID)
+	})
+	if err != nil {
+		return apperror.Internal(fmt.Errorf("bulk upsert records: %w", err))
+	}
 
-	s.ProcessWhatsAppNotificationsForSession(ctx, sessionID)
+	s.ProcessWhatsAppNotificationsForSession(ctx, sessionID, claims.SchoolID)
 	return nil
 }
 
@@ -223,7 +256,10 @@ func (s *AttendanceService) SingleMark(ctx context.Context, sessionID, studentID
 	}
 
 	status := models.AttendanceStatus(req.Status)
-	if err := s.attendanceRepo.UpdateRecordWithAudit(ctx, claims.SchoolID, sessionID, studentID, status, req.Remarks, userID); err != nil {
+	err = s.attendanceRepo.Db().RunInTx(ctx, claims.SchoolID.String(), func(ctx context.Context) error {
+		return s.attendanceRepo.UpdateRecordWithAudit(ctx, claims.SchoolID, sessionID, studentID, status, req.Remarks, userID)
+	})
+	if err != nil {
 		return apperror.Internal(err)
 	}
 	return nil
@@ -244,10 +280,13 @@ func (s *AttendanceService) CloseSession(ctx context.Context, sessionID uuid.UUI
 		}
 	}
 
-	if err := s.attendanceRepo.CloseSession(ctx, sessionID); err != nil {
+	err = s.attendanceRepo.Db().RunInTx(ctx, claims.SchoolID.String(), func(ctx context.Context) error {
+		return s.attendanceRepo.CloseSession(ctx, sessionID)
+	})
+	if err != nil {
 		return err
 	}
-	s.ProcessWhatsAppNotificationsForSession(ctx, sessionID)
+	s.ProcessWhatsAppNotificationsForSession(ctx, sessionID, claims.SchoolID)
 	return nil
 }
 
@@ -266,51 +305,76 @@ func (s *AttendanceService) ReopenSession(ctx context.Context, sessionID uuid.UU
 		}
 	}
 
-	return s.attendanceRepo.ReopenSession(ctx, sessionID)
+	err = s.attendanceRepo.Db().RunInTx(ctx, claims.SchoolID.String(), func(ctx context.Context) error {
+		return s.attendanceRepo.ReopenSession(ctx, sessionID)
+	})
+	return err
 }
 
-func (s *AttendanceService) ProcessWhatsAppNotificationsForSession(ctx context.Context, sessionID uuid.UUID) {
+func (s *AttendanceService) ProcessWhatsAppNotificationsForSession(ctx context.Context, sessionID, schoolID uuid.UUID) {
+	log.Printf("[WhatsApp debug] ProcessWhatsAppNotificationsForSession called. sessionID: %s, schoolID: %s, repo: %v, client: %v", sessionID, schoolID, s.whatsappRepo != nil, s.whatsappClient != nil)
 	if s.whatsappRepo == nil || s.whatsappClient == nil {
 		return
 	}
 
-	wasFinalizedNow, err := s.whatsappRepo.FinalizeSession(ctx, sessionID)
+	_, err := s.whatsappRepo.FinalizeSession(ctx, sessionID)
 	if err != nil {
 		log.Printf("error finalizing session %s for whatsapp: %v", sessionID, err)
 		return
 	}
-	if !wasFinalizedNow {
-		return
-	}
 
 	// Trigger notifications asynchronously
-	go func(sid uuid.UUID) {
+	go func(sid, schID uuid.UUID) {
+		time.Sleep(500 * time.Millisecond)
 		bgCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 
-		absentStudents, err := s.whatsappRepo.GetAbsentStudentsForSession(bgCtx, sid)
+		var absentStudents []repository.AbsentStudentNotificationInfo
+		var enabled bool
+		var monthlyLimit int
+		var sentCount int
+
+		// 1. Fetch all necessary data inside a quick, dedicated database transaction
+		err := func() error {
+			txCtx, tx, err := s.whatsappRepo.Db().WithTenantTx(bgCtx, schID.String())
+			if err != nil {
+				return fmt.Errorf("begin tenant tx: %w", err)
+			}
+			defer func() { _ = tx.Rollback(txCtx) }()
+
+			absentStudents, err = s.whatsappRepo.GetAbsentStudentsForSession(txCtx, sid)
+			if err != nil {
+				return fmt.Errorf("fetch absent students: %w", err)
+			}
+			if len(absentStudents) == 0 {
+				return nil
+			}
+
+			schoolID := absentStudents[0].SchoolID
+			enabled, monthlyLimit, err = s.whatsappRepo.GetSchoolWhatsAppConfig(txCtx, schoolID)
+			if err != nil {
+				return fmt.Errorf("fetch school whatsapp config: %w", err)
+			}
+
+			now := time.Now()
+			sentCount, err = s.whatsappRepo.GetMonthlySentCount(txCtx, schoolID, now.Year(), now.Month())
+			if err != nil {
+				return fmt.Errorf("fetch monthly sent count: %w", err)
+			}
+
+			return tx.Commit(txCtx)
+		}()
+
 		if err != nil {
-			log.Printf("error fetching absent students for session %s: %v", sid, err)
+			log.Printf("error fetching database info for whatsapp notifications: %v", err)
 			return
 		}
+
 		if len(absentStudents) == 0 {
 			return
 		}
 
-		schoolID := absentStudents[0].SchoolID
-		enabled, monthlyLimit, err := s.whatsappRepo.GetSchoolWhatsAppConfig(bgCtx, schoolID)
-		if err != nil {
-			log.Printf("error fetching school whatsapp config for %s: %v", schoolID, err)
-			return
-		}
-
-		now := time.Now()
-		sentCount, err := s.whatsappRepo.GetMonthlySentCount(bgCtx, schoolID, now.Year(), now.Month())
-		if err != nil {
-			log.Printf("error fetching monthly sent count for %s: %v", schoolID, err)
-			return
-		}
-
+		// 2. Iterate outside the long transaction and execute HTTP calls
 		for _, student := range absentStudents {
 			logEntry := &models.WhatsAppLog{
 				SchoolID:       student.SchoolID,
@@ -357,5 +421,5 @@ func (s *AttendanceService) ProcessWhatsAppNotificationsForSession(ctx context.C
 
 			_ = s.whatsappRepo.LogWhatsAppMessage(bgCtx, logEntry)
 		}
-	}(sessionID)
+	}(sessionID, schoolID)
 }

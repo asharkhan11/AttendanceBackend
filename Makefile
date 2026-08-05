@@ -42,6 +42,9 @@ test: ## Run all tests
 lint: ## Run golangci-lint
 	golangci-lint run ./...
 
+swagger: ## Regenerate Swagger/OpenAPI documentation
+	docker run --rm -v "$(CURDIR):/app" -w /app golang:1.22-alpine go run github.com/swaggo/swag/cmd/swag@latest init -g cmd/api/main.go
+
 sqlc-generate: ## Regenerate sqlc query code
 	sqlc generate
 

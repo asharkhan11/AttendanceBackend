@@ -6,14 +6,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/school/attendance-backend/internal/models"
 )
 
 type AttendanceRepo struct{ db *DB }
 
 func NewAttendanceRepo(db *DB) *AttendanceRepo { return &AttendanceRepo{db: db} }
-func (r *AttendanceRepo) q(ctx context.Context) pgx.Tx { return r.db.Querier(ctx) }
+func (r *AttendanceRepo) Db() *DB { return r.db }
+func (r *AttendanceRepo) q(ctx context.Context) DBTX { return r.db.Querier(ctx) }
 
 func (r *AttendanceRepo) GetOrCreateSession(ctx context.Context, schoolID, classID, teacherID uuid.UUID, date time.Time, period int16) (*models.AttendanceSession, bool, error) {
 	row := r.q(ctx).QueryRow(ctx,

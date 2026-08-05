@@ -28,7 +28,19 @@ func NewWhatsAppWebhookHandler(cfg *config.Config, whatsappRepo *repository.What
 	}
 }
 
-// VerifyWebhook handles Meta GET verification requests (hub.mode, hub.verify_token, hub.challenge).
+// VerifyWebhook godoc
+// @Summary Verify WhatsApp webhook
+// @Description Handles Meta GET verification request for the WhatsApp Business Webhook using hub challenge.
+// @Tags Webhook
+// @Accept plain
+// @Produce plain
+// @Param hub.mode query string true "Subscribe mode"
+// @Param hub.verify_token query string true "Verification token"
+// @Param hub.challenge query string true "Challenge token to be echoed back"
+// @Success 200 {string} string "hub.challenge value"
+// @Failure 403 {string} string "Forbidden: verification token mismatch"
+// @Router /webhook/whatsapp [get]
+// @Router /api/v1/webhooks/whatsapp [get]
 func (h *WhatsAppWebhookHandler) VerifyWebhook(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	mode := q.Get("hub.mode")
@@ -95,7 +107,18 @@ type metaWebhookMessage struct {
 	Type      string `json:"type"`
 }
 
-// HandleWebhook handles Meta POST notifications (status updates and incoming messages).
+// HandleWebhook godoc
+// @Summary Handle WhatsApp webhook notifications
+// @Description Handles incoming POST events (status updates like sent/delivered/read/failed or incoming messages) from Meta.
+// @Tags Webhook
+// @Accept json
+// @Produce plain
+// @Param signature-header header string false "HMAC SHA256 signature in X-Hub-Signature-256 header"
+// @Success 200 {string} string "EVENT_RECEIVED"
+// @Failure 400 {string} string "Bad Request"
+// @Failure 401 {string} string "Unauthorized: invalid signature"
+// @Router /webhook/whatsapp [post]
+// @Router /api/v1/webhooks/whatsapp [post]
 func (h *WhatsAppWebhookHandler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {

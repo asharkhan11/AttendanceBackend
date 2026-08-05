@@ -143,7 +143,10 @@ func (s *TeacherService) Activate(ctx context.Context, id uuid.UUID) error {
 }
 
 func (s *TeacherService) Delete(ctx context.Context, id uuid.UUID) error {
-	return s.userRepo.Delete(ctx, id)
+	claims := auth.ClaimsFromContext(ctx)
+	return s.userRepo.Db().RunInTx(ctx, claims.SchoolID.String(), func(ctx context.Context) error {
+		return s.userRepo.Delete(ctx, id)
+	})
 }
 
 func (s *TeacherService) ResetPassword(ctx context.Context, id uuid.UUID, req *dto.ResetPasswordRequest) error {
@@ -151,20 +154,28 @@ func (s *TeacherService) ResetPassword(ctx context.Context, id uuid.UUID, req *d
 	if err != nil {
 		return apperror.Internal(err)
 	}
-	if err := s.userRepo.UpdatePasswordHash(ctx, id, hash); err != nil {
+	claims := auth.ClaimsFromContext(ctx)
+	err = s.userRepo.Db().RunInTx(ctx, claims.SchoolID.String(), func(ctx context.Context) error {
+		if err := s.userRepo.UpdatePasswordHash(ctx, id, hash); err != nil {
+			return err
+		}
+		return s.userRepo.RevokeAllRefreshTokens(ctx, id)
+	})
+	if err != nil {
 		return apperror.Internal(err)
 	}
-	return s.userRepo.RevokeAllRefreshTokens(ctx, id)
+	return nil
 }
 
 // ─── Student Service ──────────────────────────────────────────────────────────
 
 type StudentService struct {
-	studentRepo *repository.StudentRepo
+	studentRepo     *repository.StudentRepo
+	studentBulkRepo *repository.StudentBulkRepository
 }
 
-func NewStudentService(repo *repository.StudentRepo) *StudentService {
-	return &StudentService{repo}
+func NewStudentService(repo *repository.StudentRepo, bulkRepo *repository.StudentBulkRepository) *StudentService {
+	return &StudentService{studentRepo: repo, studentBulkRepo: bulkRepo}
 }
 
 type AcademicYearService struct {
@@ -190,23 +201,35 @@ func (s *AcademicYearService) Create(ctx context.Context, req *dto.CreateAcademi
 	if err != nil {
 		return nil, apperror.Validation("end_date must be YYYY-MM-DD")
 	}
-	ay, err := s.yearRepo.Create(ctx, claims.SchoolID, req.Name, start, end, req.IsCurrent)
+	var ay *models.AcademicYear
+	err = s.yearRepo.Db().RunInTx(ctx, claims.SchoolID.String(), func(ctx context.Context) error {
+		var err error
+		ay, err = s.yearRepo.Create(ctx, claims.SchoolID, req.Name, start, end, req.IsCurrent)
+		if err != nil {
+			return err
+		}
+		if req.IsCurrent {
+			if err := s.yearRepo.SetCurrent(ctx, claims.SchoolID, ay.ID); err != nil {
+				return err
+			}
+			ay.IsCurrent = true
+		}
+		return nil
+	})
 	if err != nil {
 		if isDuplicateError(err) {
 			return nil, apperror.Conflict("academic year name already exists")
 		}
 		return nil, apperror.Internal(err)
 	}
-	if req.IsCurrent {
-		_ = s.yearRepo.SetCurrent(ctx, claims.SchoolID, ay.ID)
-		ay.IsCurrent = true
-	}
 	return ay, nil
 }
 
 func (s *AcademicYearService) SetCurrent(ctx context.Context, id uuid.UUID) error {
 	claims := auth.ClaimsFromContext(ctx)
-	return s.yearRepo.SetCurrent(ctx, claims.SchoolID, id)
+	return s.yearRepo.Db().RunInTx(ctx, claims.SchoolID.String(), func(ctx context.Context) error {
+		return s.yearRepo.SetCurrent(ctx, claims.SchoolID, id)
+	})
 }
 
 func (s *AcademicYearService) SetArchived(ctx context.Context, id uuid.UUID, archived bool) error {
@@ -383,7 +406,8 @@ func (s *StudentService) BulkImportCSV(ctx context.Context, r io.Reader) (int, [
 	}
 
 	var errs []string
-	count := 0
+	var students []*models.Student
+
 	for i, row := range records[1:] {
 		lineNo := i + 2
 		if len(row) < 5 {
@@ -406,13 +430,21 @@ func (s *StudentService) BulkImportCSV(ctx context.Context, r io.Reader) (int, [
 			g := strings.TrimSpace(row[4])
 			st.Gender = &g
 		}
-		if _, err := s.studentRepo.Create(ctx, st); err != nil {
-			errs = append(errs, fmt.Sprintf("line %d: %s", lineNo, err.Error()))
-			continue
-		}
-		count++
+		students = append(students, st)
 	}
-	return count, errs, nil
+
+	if len(errs) > 0 {
+		return 0, errs, nil
+	}
+
+	err = s.studentRepo.Db().RunInTx(ctx, claims.SchoolID.String(), func(ctx context.Context) error {
+		return s.studentBulkRepo.BulkCreate(ctx, students)
+	})
+	if err != nil {
+		return 0, nil, apperror.Internal(err)
+	}
+
+	return len(students), nil, nil
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

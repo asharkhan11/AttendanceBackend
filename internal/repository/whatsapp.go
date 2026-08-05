@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,6 +13,8 @@ import (
 type WhatsAppRepo struct{ db *DB }
 
 func NewWhatsAppRepo(db *DB) *WhatsAppRepo { return &WhatsAppRepo{db: db} }
+
+func (r *WhatsAppRepo) Db() *DB { return r.db }
 
 type AbsentStudentNotificationInfo struct {
 	SchoolID      uuid.UUID
@@ -52,9 +55,22 @@ func (r *WhatsAppRepo) GetAbsentStudentsForSession(ctx context.Context, sessionI
 		 JOIN attendance_sessions s ON r.session_id = s.id
 		 JOIN students st ON r.student_id = st.id
 		 JOIN schools sch ON s.school_id = sch.id
-		 WHERE r.session_id = $1 AND r.status = 'absent'`
+		 WHERE r.session_id = $1 
+		   AND r.status = 'absent'
+		   AND NOT EXISTS (
+		       SELECT 1 FROM whatsapp_logs wl 
+		       WHERE wl.session_id = s.id 
+		         AND wl.student_id = st.id 
+		         AND wl.status = 'sent'
+		   )`
 
 	tx := r.db.Querier(ctx)
+	log.Printf("[WhatsApp debug] GetAbsentStudentsForSession: tx is nil? %v", tx == nil)
+	if tx != nil {
+		var dbSchoolID string
+		errScan := tx.QueryRow(ctx, "SELECT current_setting('app.current_school_id', true)").Scan(&dbSchoolID)
+		log.Printf("[WhatsApp debug] current_setting('app.current_school_id') in tx: %q, scan err: %v", dbSchoolID, errScan)
+	}
 	var rows pgxRows
 	var err error
 	if tx != nil {
@@ -161,13 +177,28 @@ func (r *WhatsAppRepo) UpdateWhatsAppLogStatusByMetaID(ctx context.Context, meta
 		return err
 	}
 
-	_, err := r.db.Pool().Exec(ctx,
+	var schoolID *uuid.UUID
+	err := r.db.Pool().QueryRow(ctx, `SELECT get_whatsapp_log_school_id($1)`, metaMsgID).Scan(&schoolID)
+	if err != nil {
+		return fmt.Errorf("resolve school for meta message id: %w", err)
+	}
+	if schoolID == nil {
+		return fmt.Errorf("whatsapp log not found for message id %s", metaMsgID)
+	}
+
+	tenantCtx, tenantTx, err := r.db.WithTenantTx(ctx, schoolID.String())
+	if err != nil {
+		return fmt.Errorf("begin tenant tx for update status: %w", err)
+	}
+	defer tenantTx.Rollback(tenantCtx)
+
+	_, err = tenantTx.Exec(tenantCtx,
 		`UPDATE whatsapp_logs 
 		 SET status = $1, error_message = $2 
 		 WHERE meta_message_id = $3`,
 		status, errMsg, metaMsgID)
 	if err != nil {
-		return fmt.Errorf("update whatsapp log status by meta message id: %w", err)
+		return fmt.Errorf("update whatsapp log status: %w", err)
 	}
-	return nil
+	return tenantTx.Commit(tenantCtx)
 }

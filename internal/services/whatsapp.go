@@ -61,7 +61,7 @@ type metaLanguage struct {
 type metaTemplate struct {
 	Name       string          `json:"name"`
 	Language   metaLanguage    `json:"language"`
-	Components []metaComponent `json:"components"`
+	Components []metaComponent `json:"components,omitempty"`
 }
 
 type metaSendMessagePayload struct {
@@ -122,6 +122,30 @@ func (c *WhatsAppClient) SendAbsentNotification(
 		return mockID, nil
 	}
 
+	var components []metaComponent
+	if c.templateName != "hello_world" {
+		var params []metaTextParam
+		if c.templateName == "jaspers_market_order_confirmation_v1" {
+			params = []metaTextParam{
+				{Type: "text", Text: studentName},
+				{Type: "text", Text: "1"},      // Quantity (e.g. 1 day of absence)
+				{Type: "text", Text: "$0.00"},  // Price (dummy price)
+			}
+		} else {
+			params = []metaTextParam{
+				{Type: "text", Text: studentName},
+				{Type: "text", Text: dateStr},
+				{Type: "text", Text: schoolName},
+			}
+		}
+		components = []metaComponent{
+			{
+				Type:       "body",
+				Parameters: params,
+			},
+		}
+	}
+
 	payload := metaSendMessagePayload{
 		MessagingProduct: "whatsapp",
 		RecipientType:    "individual",
@@ -132,16 +156,7 @@ func (c *WhatsAppClient) SendAbsentNotification(
 			Language: metaLanguage{
 				Code: c.templateLang,
 			},
-			Components: []metaComponent{
-				{
-					Type: "body",
-					Parameters: []metaTextParam{
-						{Type: "text", Text: studentName},
-						{Type: "text", Text: dateStr},
-						{Type: "text", Text: schoolName},
-					},
-				},
-			},
+			Components: components,
 		},
 	}
 
@@ -151,6 +166,7 @@ func (c *WhatsAppClient) SendAbsentNotification(
 	}
 
 	endpoint := fmt.Sprintf("%s/%s/messages", c.apiURL, c.phoneNumberID)
+	log.Printf("[WhatsApp debug] Sending Request to URL: %s, Payload: %s", endpoint, string(bodyBytes))
 
 	maxAttempts := 3
 	var lastErr error
@@ -166,6 +182,7 @@ func (c *WhatsAppClient) SendAbsentNotification(
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
+			log.Printf("[WhatsApp debug] Attempt %d HTTP request error: %v", attempt, err)
 			lastErr = fmt.Errorf("http request failed: %w", err)
 			if attempt < maxAttempts {
 				time.Sleep(time.Duration(attempt*500) * time.Millisecond)
@@ -176,6 +193,7 @@ func (c *WhatsAppClient) SendAbsentNotification(
 
 		respBody, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
+		log.Printf("[WhatsApp debug] Attempt %d HTTP response status: %d, Body: %s", attempt, resp.StatusCode, string(respBody))
 		if err != nil {
 			lastErr = fmt.Errorf("read response body: %w", err)
 			if attempt < maxAttempts {

@@ -13,13 +13,13 @@ type Meta struct {
 	Total    int64 `json:"total"`
 }
 
-type envelope struct {
-	Data  any    `json:"data,omitempty"`
-	Meta  *Meta  `json:"meta,omitempty"`
-	Error *errBody `json:"error,omitempty"`
+type Envelope struct {
+	Data  any      `json:"data,omitempty"`
+	Meta  *Meta    `json:"meta,omitempty"`
+	Error *ErrBody `json:"error,omitempty"`
 }
 
-type errBody struct {
+type ErrBody struct {
 	Code    apperror.Code        `json:"code"`
 	Message string               `json:"message"`
 	Details []apperror.FieldError `json:"details,omitempty"`
@@ -28,13 +28,13 @@ type errBody struct {
 func WriteJSON(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(envelope{Data: data})
+	_ = json.NewEncoder(w).Encode(Envelope{Data: data})
 }
 
 func WriteList(w http.ResponseWriter, status int, data any, meta Meta) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(envelope{Data: data, Meta: &meta})
+	_ = json.NewEncoder(w).Encode(Envelope{Data: data, Meta: &meta})
 }
 
 func WriteError(w http.ResponseWriter, err error) {
@@ -44,7 +44,7 @@ func WriteError(w http.ResponseWriter, err error) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(ae.HTTPStatus)
-	_ = json.NewEncoder(w).Encode(envelope{Error: &errBody{
+	_ = json.NewEncoder(w).Encode(Envelope{Error: &ErrBody{
 		Code:    ae.Code,
 		Message: ae.Message,
 		Details: ae.Details,

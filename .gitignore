@@ -33,3 +33,7 @@ Thumbs.db
 
 # Database backups
 *.sql.gz
+
+# Dependencies
+vendor/
+

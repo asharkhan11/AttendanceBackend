@@ -6,7 +6,7 @@
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
-OUT_DIR="${1:-$REPO_ROOT/backups}"
+OUT_DIR="${1:-$ADMIN_TOOLS_DIR/backups}"
 mkdir -p "$OUT_DIR"
 
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)

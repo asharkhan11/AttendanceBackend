@@ -4,14 +4,21 @@
 
 set -euo pipefail
 
-# Resolve repo root (this file lives in scripts/admin-tools/)
+# Resolve admin tools dir and optional repo root
 ADMIN_TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$ADMIN_TOOLS_DIR/../.." && pwd)"
+REPO_ROOT="$(cd "$ADMIN_TOOLS_DIR/../.." 2>/dev/null && pwd || echo "$ADMIN_TOOLS_DIR")"
 
-# Load .env if present, but do NOT override variables already set in the
-# calling shell's environment (e.g. `FOO=bar ./script.sh` should win over .env).
-if [[ -f "$REPO_ROOT/.env" ]]; then
-  while IFS='=' read -r key value; do
+# Load .env if present (checking ADMIN_TOOLS_DIR first, then REPO_ROOT),
+# but do NOT override variables already set in the calling shell's environment.
+ENV_FILE=""
+if [[ -f "$ADMIN_TOOLS_DIR/.env" ]]; then
+  ENV_FILE="$ADMIN_TOOLS_DIR/.env"
+elif [[ -f "$REPO_ROOT/.env" ]]; then
+  ENV_FILE="$REPO_ROOT/.env"
+fi
+
+if [[ -n "$ENV_FILE" ]]; then
+  while IFS='=' read -r key value || [[ -n "$key" ]]; do
     # skip comments/blank lines
     [[ "$key" =~ ^[[:space:]]*# ]] && continue
     [[ -z "$key" ]] && continue
@@ -19,7 +26,7 @@ if [[ -f "$REPO_ROOT/.env" ]]; then
     if [[ -n "$key" && -z "${!key:-}" ]]; then
       export "$key=$value"
     fi
-  done < "$REPO_ROOT/.env"
+  done < "$ENV_FILE"
 fi
 
 # MIGRATE_DATABASE_URL (owner role) is used for admin scripts since they need
@@ -44,17 +51,67 @@ if [[ -z "$DB_URL" ]]; then
   exit 1
 fi
 
-PWTOOL_BIN="$REPO_ROOT/bin/pwtool"
-if [[ -f "$REPO_ROOT/bin/pwtool.exe" || "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
-  PWTOOL_BIN="$REPO_ROOT/bin/pwtool.exe"
-fi
+# Resolve location of pwtool binary (supports Linux/Ubuntu without extension and Windows .exe)
+resolve_pwtool() {
+  if [[ -n "${PWTOOL_BIN:-}" ]]; then
+    if [[ -f "$PWTOOL_BIN" ]] || command -v "$PWTOOL_BIN" >/dev/null 2>&1; then
+      return 0
+    fi
+  fi
 
-# Build pwtool on first use if the binary doesn't exist yet.
+  # Prefer .exe on Windows environments, extension-less binary on Linux (Ubuntu) / Unix
+  if [[ "${OSTYPE:-}" == "msys" || "${OSTYPE:-}" == "cygwin" || "${OSTYPE:-}" == "win32" ]]; then
+    local candidates=(
+      "$ADMIN_TOOLS_DIR/pwtool.exe"
+      "$ADMIN_TOOLS_DIR/pwtool"
+      "$REPO_ROOT/bin/pwtool.exe"
+      "$REPO_ROOT/bin/pwtool"
+    )
+  else
+    local candidates=(
+      "$ADMIN_TOOLS_DIR/pwtool"
+      "$ADMIN_TOOLS_DIR/pwtool.exe"
+      "$REPO_ROOT/bin/pwtool"
+      "$REPO_ROOT/bin/pwtool.exe"
+    )
+  fi
+
+  for candidate in "${candidates[@]}"; do
+    if [[ -f "$candidate" ]]; then
+      PWTOOL_BIN="$candidate"
+      return 0
+    fi
+  done
+
+  if command -v pwtool >/dev/null 2>&1; then
+    PWTOOL_BIN="pwtool"
+  elif command -v pwtool.exe >/dev/null 2>&1; then
+    PWTOOL_BIN="pwtool.exe"
+  else
+    PWTOOL_BIN=""
+  fi
+}
+
+resolve_pwtool
+
+# Verify pwtool binary exists and is executable (does NOT attempt to build from source)
 ensure_pwtool() {
-  if [[ ! -f "$PWTOOL_BIN" ]]; then
-    echo "Building pwtool (one-time)..." >&2
-    mkdir -p "$REPO_ROOT/bin"
-    (cd "$REPO_ROOT" && go build -mod=vendor -o "$PWTOOL_BIN" ./cmd/pwtool/)
+  resolve_pwtool
+  local valid=false
+  if [[ -n "$PWTOOL_BIN" ]]; then
+    if [[ -f "$PWTOOL_BIN" ]] || command -v "$PWTOOL_BIN" >/dev/null 2>&1; then
+      valid=true
+    fi
+  fi
+
+  if [[ "$valid" == "false" ]]; then
+    echo "ERROR: 'pwtool' binary not found." >&2
+    echo "       Please place the 'pwtool' (or 'pwtool.exe') binary in '$ADMIN_TOOLS_DIR' or make it available in PATH." >&2
+    exit 1
+  fi
+  # On Linux/Ubuntu, ensure executable permission is set on the binary
+  if [[ -f "$PWTOOL_BIN" && ! -x "$PWTOOL_BIN" ]]; then
+    chmod +x "$PWTOOL_BIN" 2>/dev/null || true
   fi
 }
 

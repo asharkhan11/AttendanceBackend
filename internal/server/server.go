@@ -13,6 +13,9 @@ import (
 	"github.com/school/attendance-backend/internal/models"
 	"github.com/school/attendance-backend/internal/repository"
 	"github.com/school/attendance-backend/internal/services"
+
+	_ "github.com/school/attendance-backend/docs"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
 func NewRouter(cfg *config.Config, pool *pgxpool.Pool) http.Handler {
@@ -34,12 +37,15 @@ func NewRouter(cfg *config.Config, pool *pgxpool.Pool) http.Handler {
 	jwtSvc := auth.NewJWTService(cfg.JWTSecret, cfg.JWTAccessTTL)
 	passSvc := auth.NewPasswordService(cfg.Argon2MemoryKB, cfg.Argon2Iterations, cfg.Argon2Parallelism)
 
+	studentBulkRepo := repository.NewStudentBulkRepository(db)
+	attendanceBulkRepo := repository.NewAttendanceBulkRepository(db)
+
 	authSvc := services.NewAuthService(schoolRepo, userRepo, jwtSvc, passSvc, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
 	classSvc := services.NewClassService(classRepo, yearRepo)
 	teacherSvc := services.NewTeacherService(userRepo, passSvc)
-	studentSvc := services.NewStudentService(studentRepo)
+	studentSvc := services.NewStudentService(studentRepo, studentBulkRepo)
 	yearSvc := services.NewAcademicYearService(yearRepo)
-	attendanceSvc := services.NewAttendanceService(attendanceRepo, studentRepo, classRepo)
+	attendanceSvc := services.NewAttendanceService(attendanceRepo, attendanceBulkRepo, studentRepo, classRepo)
 	whatsappClient := services.NewWhatsAppClient(cfg)
 	attendanceSvc.SetWhatsApp(whatsappRepo, whatsappClient)
 	analyticsSvc := services.NewAnalyticsService(analyticsRepo, studentRepo)
@@ -62,6 +68,11 @@ func NewRouter(cfg *config.Config, pool *pgxpool.Pool) http.Handler {
 	r.Use(mw.Logger)
 	r.Use(mw.Recoverer)
 	r.Use(mw.CORS(cfg.CORSAllowedOrigins))
+
+	// ─── Swagger ──────────────────────────────────────────────────────────────
+	r.Get("/swagger/*", httpSwagger.Handler(
+		httpSwagger.URL("/swagger/doc.json"),
+	))
 
 	// ─── Health / readiness ───────────────────────────────────────────────────
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {

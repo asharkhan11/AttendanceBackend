@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/school/attendance-backend/internal/models"
 )
 
@@ -13,7 +12,8 @@ type UserRepo struct{ db *DB }
 
 func NewUserRepo(db *DB) *UserRepo { return &UserRepo{db: db} }
 
-func (r *UserRepo) q(ctx context.Context) pgx.Tx { return r.db.Querier(ctx) }
+func (r *UserRepo) Db() *DB { return r.db }
+func (r *UserRepo) q(ctx context.Context) DBTX { return r.db.Querier(ctx) }
 
 func (r *UserRepo) GetByEmail(ctx context.Context, schoolID uuid.UUID, email string) (*models.User, string, error) {
 	// Called during login: we must set app.current_school_id for RLS even though
@@ -125,6 +125,16 @@ func (r *UserRepo) UpdatePasswordHash(ctx context.Context, id uuid.UUID, hash st
 	_, err := r.q(ctx).Exec(ctx,
 		`UPDATE users SET password_hash=$2, updated_at=now() WHERE id=$1`, id, hash)
 	return err
+}
+
+func (r *UserRepo) GetPasswordHashByID(ctx context.Context, id uuid.UUID) (string, error) {
+	var hash string
+	err := r.q(ctx).QueryRow(ctx,
+		`SELECT password_hash FROM users WHERE id=$1`, id).Scan(&hash)
+	if err != nil {
+		return "", err
+	}
+	return hash, nil
 }
 
 // StoreRefreshToken saves a hashed refresh token.

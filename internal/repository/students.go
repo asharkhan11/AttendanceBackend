@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,10 +11,12 @@ import (
 	"github.com/school/attendance-backend/internal/models"
 )
 
+
 type StudentRepo struct{ db *DB }
 
 func NewStudentRepo(db *DB) *StudentRepo { return &StudentRepo{db: db} }
-func (r *StudentRepo) q(ctx context.Context) pgx.Tx { return r.db.Querier(ctx) }
+func (r *StudentRepo) Db() *DB { return r.db }
+func (r *StudentRepo) q(ctx context.Context) DBTX { return r.db.Querier(ctx) }
 
 func (r *StudentRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.Student, error) {
 	row := r.q(ctx).QueryRow(ctx,
@@ -29,28 +32,33 @@ func (r *StudentRepo) ListBySchool(ctx context.Context, schoolID uuid.UUID, acad
 
 	if academicYearID != nil {
 		args = append(args, *academicYearID)
-		where += fmt.Sprintf(" AND c.academic_year_id = $%d", len(args))
+		where += fmt.Sprintf(" AND e.academic_year_id = $%d", len(args))
 	}
 	if classID != nil {
 		args = append(args, *classID)
-		where += fmt.Sprintf(" AND s.class_id = $%d", len(args))
+		where += fmt.Sprintf(" AND e.class_id = $%d", len(args))
 	}
 	if search != "" {
 		args = append(args, "%"+search+"%")
-		where += fmt.Sprintf(" AND (s.full_name ILIKE $%d OR s.admission_number ILIKE $%d OR s.roll_number ILIKE $%d)", len(args), len(args), len(args))
+		where += fmt.Sprintf(" AND (s.full_name ILIKE $%d OR s.admission_number ILIKE $%d OR COALESCE(e.roll_number, s.roll_number) ILIKE $%d)", len(args), len(args), len(args))
 	}
 
-	countQ := fmt.Sprintf(`SELECT COUNT(*) FROM students s JOIN classes c ON s.class_id = c.id WHERE %s`, where)
+	fromClause := `students s LEFT JOIN student_class_enrollments e ON e.student_id = s.id`
+	if academicYearID != nil || classID != nil {
+		fromClause += ` LEFT JOIN classes c ON e.class_id = c.id`
+	}
+
+	countQ := fmt.Sprintf(`SELECT COUNT(DISTINCT s.id) FROM %s WHERE %s`, fromClause, where)
 	var total int64
 	if err := r.q(ctx).QueryRow(ctx, countQ, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count students: %w", err)
 	}
 
-	q := fmt.Sprintf(`SELECT s.id,s.school_id,s.class_id,s.admission_number,s.roll_number,s.full_name,
+	q := fmt.Sprintf(`SELECT s.id,s.school_id,COALESCE(e.class_id, s.class_id) AS class_id,s.admission_number,COALESCE(e.roll_number, s.roll_number) AS roll_number,s.full_name,
 	                         s.gender,s.dob,s.guardian_name,s.guardian_phone,s.is_active,s.created_at,s.updated_at
-	                  FROM students s JOIN classes c ON s.class_id = c.id
+	                  FROM %s
 	                  WHERE %s
-	                  ORDER BY s.roll_number LIMIT $%d OFFSET $%d`, where, len(args)+1, len(args)+2)
+	                  ORDER BY COALESCE(e.roll_number, s.roll_number) LIMIT $%d OFFSET $%d`, fromClause, where, len(args)+1, len(args)+2)
 	args = append(args, limit, offset)
 	rows, err := r.q(ctx).Query(ctx, q, args...)
 	if err != nil {
@@ -70,25 +78,23 @@ func (r *StudentRepo) ListBySchool(ctx context.Context, schoolID uuid.UUID, acad
 }
 
 func (r *StudentRepo) ListByClass(ctx context.Context, classID uuid.UUID, activeOnly bool, limit, offset int) ([]*models.Student, int64, error) {
-	countQ := `SELECT COUNT(*) FROM students WHERE class_id=$1`
+	fromClause := `students s
+	               LEFT JOIN student_class_enrollments e ON e.student_id = s.id AND e.class_id = $1`
+	where := `(e.class_id = $1 OR (e.class_id IS NULL AND s.class_id = $1))`
 	if activeOnly {
-		countQ += " AND is_active=true"
+		where += " AND s.is_active=true"
 	}
+
+	countQ := fmt.Sprintf(`SELECT COUNT(*) FROM %s WHERE %s`, fromClause, where)
 	var total int64
 	if err := r.q(ctx).QueryRow(ctx, countQ, classID).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count students: %w", err)
 	}
 
-	q := `SELECT id,school_id,class_id,admission_number,roll_number,full_name,
-		         gender,dob,guardian_name,guardian_phone,is_active,created_at,updated_at
-		  FROM students WHERE class_id=$1`
-	args := []any{classID}
-	if activeOnly {
-		q += " AND is_active=true"
-	}
-	q += fmt.Sprintf(" ORDER BY roll_number LIMIT $%d OFFSET $%d", len(args)+1, len(args)+2)
-	args = append(args, limit, offset)
-	rows, err := r.q(ctx).Query(ctx, q, args...)
+	q := fmt.Sprintf(`SELECT s.id,s.school_id,$1::uuid AS class_id,s.admission_number,COALESCE(e.roll_number, s.roll_number) AS roll_number,s.full_name,
+		         s.gender,s.dob,s.guardian_name,s.guardian_phone,s.is_active,s.created_at,s.updated_at
+		  FROM %s WHERE %s ORDER BY COALESCE(e.roll_number, s.roll_number) LIMIT $2 OFFSET $3`, fromClause, where)
+	rows, err := r.q(ctx).Query(ctx, q, classID, limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -108,15 +114,36 @@ func (r *StudentRepo) ListByClass(ctx context.Context, classID uuid.UUID, active
 }
 
 func (r *StudentRepo) Create(ctx context.Context, s *models.Student) (*models.Student, error) {
-	row := r.q(ctx).QueryRow(ctx,
-		`INSERT INTO students(school_id,class_id,admission_number,roll_number,full_name,
-		                      gender,dob,guardian_name,guardian_phone)
-		 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
-		 RETURNING id,school_id,class_id,admission_number,roll_number,full_name,
-		           gender,dob,guardian_name,guardian_phone,is_active,created_at,updated_at`,
-		s.SchoolID, s.ClassID, s.AdmissionNumber, s.RollNumber, s.FullName,
-		s.Gender, s.DOB, s.GuardianName, s.GuardianPhone)
-	return scanStudent(row)
+	var created *models.Student
+	err := r.db.RunInTx(ctx, s.SchoolID.String(), func(ctx context.Context) error {
+		row := r.q(ctx).QueryRow(ctx,
+			`INSERT INTO students(school_id,class_id,admission_number,roll_number,full_name,
+			                      gender,dob,guardian_name,guardian_phone)
+			 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
+			 RETURNING id,school_id,class_id,admission_number,roll_number,full_name,
+			           gender,dob,guardian_name,guardian_phone,is_active,created_at,updated_at`,
+			s.SchoolID, s.ClassID, s.AdmissionNumber, s.RollNumber, s.FullName,
+			s.Gender, s.DOB, s.GuardianName, s.GuardianPhone)
+		var err error
+		created, err = scanStudent(row)
+		if err != nil {
+			return err
+		}
+
+		var ayID uuid.UUID
+		if err := r.q(ctx).QueryRow(ctx, `SELECT academic_year_id FROM classes WHERE id=$1`, s.ClassID).Scan(&ayID); err == nil {
+			_, _ = r.q(ctx).Exec(ctx,
+				`INSERT INTO student_class_enrollments(school_id, student_id, class_id, academic_year_id, roll_number, status)
+				 VALUES($1, $2, $3, $4, $5, 'active')
+				 ON CONFLICT (student_id, academic_year_id) DO UPDATE SET class_id=EXCLUDED.class_id, roll_number=EXCLUDED.roll_number`,
+				created.SchoolID, created.ID, created.ClassID, ayID, created.RollNumber)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return created, nil
 }
 
 func (r *StudentRepo) Update(ctx context.Context, id uuid.UUID, classID uuid.UUID, admissionNumber, rollNumber, fullName string, gender *string, dob *time.Time, guardianName, guardianPhone *string) (*models.Student, error) {
@@ -126,7 +153,19 @@ func (r *StudentRepo) Update(ctx context.Context, id uuid.UUID, classID uuid.UUI
 		 RETURNING id,school_id,class_id,admission_number,roll_number,full_name,
 		           gender,dob,guardian_name,guardian_phone,is_active,created_at,updated_at`,
 		id, classID, admissionNumber, rollNumber, fullName, gender, dob, guardianName, guardianPhone)
-	return scanStudent(row)
+	updated, err := scanStudent(row)
+	if err != nil {
+		return nil, err
+	}
+	var ayID uuid.UUID
+	if err := r.q(ctx).QueryRow(ctx, `SELECT academic_year_id FROM classes WHERE id=$1`, classID).Scan(&ayID); err == nil {
+		_, _ = r.q(ctx).Exec(ctx,
+			`INSERT INTO student_class_enrollments(school_id, student_id, class_id, academic_year_id, roll_number, status)
+			 VALUES($1, $2, $3, $4, $5, 'active')
+			 ON CONFLICT (student_id, academic_year_id) DO UPDATE SET class_id=EXCLUDED.class_id, roll_number=EXCLUDED.roll_number`,
+			updated.SchoolID, updated.ID, updated.ClassID, ayID, updated.RollNumber)
+	}
+	return updated, nil
 }
 
 func (r *StudentRepo) Delete(ctx context.Context, id uuid.UUID) error {
@@ -149,7 +188,9 @@ func (r *StudentRepo) Deactivate(ctx context.Context, id uuid.UUID) error {
 // GetAllByIDs returns students matching a list of IDs (used in bulk-mark validation).
 func (r *StudentRepo) GetAllByClassAndIDs(ctx context.Context, classID uuid.UUID, ids []uuid.UUID) (map[uuid.UUID]bool, error) {
 	rows, err := r.q(ctx).Query(ctx,
-		`SELECT id FROM students WHERE class_id=$1 AND id=ANY($2) AND is_active=true`,
+		`SELECT s.id FROM students s
+		 LEFT JOIN student_class_enrollments e ON e.student_id = s.id AND e.class_id = $1
+		 WHERE (e.class_id = $1 OR (e.class_id IS NULL AND s.class_id = $1)) AND s.id = ANY($2) AND s.is_active = true`,
 		classID, ids)
 	if err != nil {
 		return nil, err
@@ -174,38 +215,31 @@ type NextStudentInfo struct {
 
 func (r *StudentRepo) GetNextStudentInfo(ctx context.Context, schoolID, classID uuid.UUID) (*NextStudentInfo, error) {
 	// 1. Determine next admission number for school
-	rows, err := r.q(ctx).Query(ctx, `SELECT admission_number FROM students WHERE school_id=$1`, schoolID)
-	if err != nil {
-		return nil, fmt.Errorf("get admission numbers: %w", err)
-	}
-	maxAdmNum := 0
+	var lastAdm string
+	err := r.q(ctx).QueryRow(ctx,
+		`SELECT admission_number 
+		 FROM students 
+		 WHERE school_id = $1 AND admission_number ~ '\d+$'
+		 ORDER BY (substring(admission_number from '\d+$'))::integer DESC 
+		 LIMIT 1`, schoolID).Scan(&lastAdm)
+
 	admPrefix := "ADM"
 	admPad := 3
-	hasAdm := false
+	nextAdm := fmt.Sprintf("%s%0*d", admPrefix, admPad, 1)
 
-	for rows.Next() {
-		var adm string
-		if err := rows.Scan(&adm); err == nil {
-			hasAdm = true
-			prefix, num, pad := extractNumberSuffix(adm)
-			if num > maxAdmNum {
-				maxAdmNum = num
-				if prefix != "" {
-					admPrefix = prefix
-				}
-				if pad > 0 {
-					admPad = pad
-				}
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("get max admission number: %w", err)
+	}
+
+	if err == nil {
+		prefix, num, pad := extractNumberSuffix(lastAdm)
+		if num >= 0 {
+			if pad > 0 {
+				nextAdm = fmt.Sprintf("%s%0*d", prefix, pad, num+1)
+			} else {
+				nextAdm = fmt.Sprintf("%s%d", prefix, num+1)
 			}
 		}
-	}
-	rows.Close()
-
-	var nextAdm string
-	if !hasAdm || maxAdmNum == 0 {
-		nextAdm = fmt.Sprintf("%s%0*d", admPrefix, admPad, 1)
-	} else {
-		nextAdm = fmt.Sprintf("%s%0*d", admPrefix, admPad, maxAdmNum+1)
 	}
 
 	// 2. Determine last roll number for class

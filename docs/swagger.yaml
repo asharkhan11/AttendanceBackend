@@ -1,0 +1,4079 @@
+definitions:
+  apperror.Code:
+    enum:
+    - VALIDATION_ERROR
+    - UNAUTHORIZED
+    - FORBIDDEN
+    - NOT_FOUND
+    - CONFLICT
+    - INTERNAL_ERROR
+    type: string
+    x-enum-varnames:
+    - CodeValidation
+    - CodeUnauthorized
+    - CodeForbidden
+    - CodeNotFound
+    - CodeConflict
+    - CodeInternal
+  apperror.FieldError:
+    properties:
+      field:
+        type: string
+      issue:
+        type: string
+    type: object
+  dto.AssignClassTeacherRequest:
+    properties:
+      class_teacher_id:
+        type: string
+    type: object
+  dto.BulkMarkRequest:
+    properties:
+      marks:
+        items:
+          $ref: '#/definitions/dto.MarkEntry'
+        minItems: 1
+        type: array
+    required:
+    - marks
+    type: object
+  dto.ChangePasswordRequest:
+    properties:
+      current_password:
+        type: string
+      new_password:
+        minLength: 8
+        type: string
+    required:
+    - current_password
+    - new_password
+    type: object
+  dto.CopyClassesRequest:
+    properties:
+      source_academic_year_id:
+        type: string
+      target_academic_year_id:
+        type: string
+    required:
+    - source_academic_year_id
+    - target_academic_year_id
+    type: object
+  dto.CopyTeachersRequest:
+    properties:
+      class_mappings:
+        additionalProperties:
+          type: string
+        description: map source class_id -> target class_id
+        type: object
+      source_academic_year_id:
+        type: string
+      target_academic_year_id:
+        type: string
+    required:
+    - source_academic_year_id
+    - target_academic_year_id
+    type: object
+  dto.CreateAcademicYearRequest:
+    properties:
+      end_date:
+        type: string
+      is_current:
+        type: boolean
+      name:
+        maxLength: 50
+        type: string
+      start_date:
+        type: string
+    required:
+    - end_date
+    - name
+    - start_date
+    type: object
+  dto.CreateClassRequest:
+    properties:
+      academic_year_id:
+        type: string
+      class_teacher_id:
+        type: string
+      grade_level:
+        maximum: 12
+        minimum: 1
+        type: integer
+      section:
+        maxLength: 10
+        type: string
+    required:
+    - grade_level
+    - section
+    type: object
+  dto.CreateSessionRequest:
+    properties:
+      class_id:
+        type: string
+      period_number:
+        type: integer
+      session_date:
+        type: string
+    required:
+    - class_id
+    - session_date
+    type: object
+  dto.CreateStudentRequest:
+    properties:
+      admission_number:
+        maxLength: 50
+        type: string
+      class_id:
+        type: string
+      dob:
+        type: string
+      full_name:
+        maxLength: 255
+        type: string
+      gender:
+        type: string
+      guardian_name:
+        type: string
+      guardian_phone:
+        type: string
+      roll_number:
+        maxLength: 20
+        type: string
+    required:
+    - class_id
+    - full_name
+    - roll_number
+    type: object
+  dto.CreateTeacherRequest:
+    properties:
+      email:
+        type: string
+      full_name:
+        maxLength: 255
+        type: string
+      password:
+        minLength: 8
+        type: string
+      phone:
+        type: string
+    required:
+    - email
+    - full_name
+    - password
+    type: object
+  dto.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        minLength: 6
+        type: string
+      school_code:
+        type: string
+    required:
+    - email
+    - password
+    - school_code
+    type: object
+  dto.LoginResponse:
+    properties:
+      access_token:
+        type: string
+      expires_in_seconds:
+        type: integer
+      refresh_token:
+        type: string
+      user:
+        $ref: '#/definitions/dto.UserResp'
+    type: object
+  dto.LogoutRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  dto.MarkEntry:
+    properties:
+      remarks:
+        type: string
+      status:
+        enum:
+        - present
+        - absent
+        - late
+        - excused
+        type: string
+      student_id:
+        type: string
+    required:
+    - status
+    - student_id
+    type: object
+  dto.PromoteStudentsRequest:
+    properties:
+      source_class_id:
+        type: string
+      student_ids:
+        items:
+          type: string
+        minItems: 1
+        type: array
+      target_class_id:
+        type: string
+    required:
+    - source_class_id
+    - student_ids
+    - target_class_id
+    type: object
+  dto.RefreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  dto.ResetPasswordRequest:
+    properties:
+      new_password:
+        minLength: 8
+        type: string
+    required:
+    - new_password
+    type: object
+  dto.SingleMarkRequest:
+    properties:
+      remarks:
+        type: string
+      status:
+        enum:
+        - present
+        - absent
+        - late
+        - excused
+        type: string
+    required:
+    - status
+    type: object
+  dto.UpdateProfileRequest:
+    properties:
+      full_name:
+        minLength: 2
+        type: string
+      phone:
+        type: string
+    required:
+    - full_name
+    type: object
+  dto.UpdateStudentRequest:
+    properties:
+      admission_number:
+        maxLength: 50
+        type: string
+      class_id:
+        type: string
+      dob:
+        type: string
+      full_name:
+        maxLength: 255
+        type: string
+      gender:
+        type: string
+      guardian_name:
+        type: string
+      guardian_phone:
+        type: string
+      roll_number:
+        maxLength: 20
+        type: string
+    required:
+    - admission_number
+    - class_id
+    - full_name
+    - roll_number
+    type: object
+  dto.UpdateTeacherRequest:
+    properties:
+      full_name:
+        maxLength: 255
+        type: string
+      phone:
+        type: string
+    required:
+    - full_name
+    type: object
+  dto.UserResp:
+    properties:
+      email:
+        type: string
+      full_name:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      phone:
+        type: string
+      role:
+        type: string
+      school_id:
+        type: string
+    type: object
+  httpx.Envelope:
+    properties:
+      data: {}
+      error:
+        $ref: '#/definitions/httpx.ErrBody'
+      meta:
+        $ref: '#/definitions/httpx.Meta'
+    type: object
+  httpx.ErrBody:
+    properties:
+      code:
+        $ref: '#/definitions/apperror.Code'
+      details:
+        items:
+          $ref: '#/definitions/apperror.FieldError'
+        type: array
+      message:
+        type: string
+    type: object
+  httpx.Meta:
+    properties:
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  models.AcademicYear:
+    properties:
+      created_at:
+        type: string
+      end_date:
+        type: string
+      id:
+        type: string
+      is_archived:
+        type: boolean
+      is_current:
+        type: boolean
+      name:
+        type: string
+      school_id:
+        type: string
+      start_date:
+        type: string
+    type: object
+  models.AttendanceSession:
+    properties:
+      class_id:
+        type: string
+      created_at:
+        type: string
+      finalized_at:
+        type: string
+      id:
+        type: string
+      is_finalized:
+        type: boolean
+      period_number:
+        type: integer
+      school_id:
+        type: string
+      session_date:
+        type: string
+      status:
+        $ref: '#/definitions/models.SessionStatus'
+      teacher_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.CreateHolidayRequest:
+    properties:
+      description:
+        type: string
+      holiday_date:
+        description: YYYY-MM-DD
+        type: string
+      is_holiday:
+        type: boolean
+      title:
+        type: string
+    type: object
+  models.DateHoliday:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      holiday_date:
+        type: string
+      id:
+        type: string
+      is_holiday:
+        type: boolean
+      school_id:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.SessionStatus:
+    enum:
+    - open
+    - closed
+    type: string
+    x-enum-varnames:
+    - SessionOpen
+    - SessionClosed
+  models.Student:
+    properties:
+      admission_number:
+        type: string
+      class_id:
+        type: string
+      created_at:
+        type: string
+      dob:
+        type: string
+      full_name:
+        type: string
+      gender:
+        type: string
+      guardian_name:
+        type: string
+      guardian_phone:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      roll_number:
+        type: string
+      school_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.UpdateWeeklyScheduleRequest:
+    properties:
+      schedules:
+        items:
+          $ref: '#/definitions/models.WeeklyScheduleItem'
+        type: array
+    type: object
+  models.User:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      full_name:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      phone:
+        type: string
+      role:
+        $ref: '#/definitions/models.UserRole'
+      school_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.UserRole:
+    enum:
+    - admin
+    - teacher
+    type: string
+    x-enum-varnames:
+    - RoleAdmin
+    - RoleTeacher
+  models.WeeklySchedule:
+    properties:
+      created_at:
+        type: string
+      day_name:
+        type: string
+      day_of_week:
+        description: 0=Sunday, 1=Monday, ..., 6=Saturday
+        type: integer
+      id:
+        type: string
+      is_working_day:
+        type: boolean
+      school_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.WeeklyScheduleItem:
+    properties:
+      day_of_week:
+        type: integer
+      is_working_day:
+        type: boolean
+    type: object
+  repository.AuditLogRow:
+    properties:
+      changed_at:
+        type: string
+      changed_by_name:
+        type: string
+      class_name:
+        type: string
+      id:
+        type: string
+      new_status:
+        type: string
+      old_status:
+        type: string
+      roll_number:
+        type: string
+      session_date:
+        type: string
+      student_name:
+        type: string
+    type: object
+  repository.ClassComparisonRow:
+    properties:
+      attendance_percentage:
+        type: number
+      class_id:
+        type: string
+      class_name:
+        type: string
+      grade_level:
+        type: integer
+      section:
+        type: string
+      total_students:
+        type: integer
+    type: object
+  repository.ClassSummaryData:
+    properties:
+      absent:
+        type: integer
+      attendance_percentage:
+        type: number
+      class_id:
+        type: string
+      excused:
+        type: integer
+      late:
+        type: integer
+      present:
+        type: integer
+      total_records:
+        type: integer
+      total_sessions:
+        type: integer
+      total_students:
+        type: integer
+    type: object
+  repository.ClassWithTeacher:
+    properties:
+      academic_year_id:
+        type: string
+      class_teacher_email:
+        type: string
+      class_teacher_id:
+        type: string
+      class_teacher_name:
+        type: string
+      created_at:
+        type: string
+      grade_level:
+        type: integer
+      id:
+        type: string
+      school_id:
+        type: string
+      section:
+        type: string
+    type: object
+  repository.DefaulterRow:
+    properties:
+      attendancePct:
+        format: float64
+        type: number
+      fullName:
+        type: string
+      rollNumber:
+        type: string
+      studentID:
+        type: string
+    type: object
+  repository.MonthlyMatrixData:
+    properties:
+      class_id:
+        type: string
+      class_name:
+        type: string
+      days_in_month:
+        type: integer
+      month:
+        type: integer
+      students:
+        items:
+          $ref: '#/definitions/repository.MonthlyMatrixStudent'
+        type: array
+      year:
+        type: integer
+    type: object
+  repository.MonthlyMatrixStudent:
+    properties:
+      admission_number:
+        type: string
+      daily_status:
+        additionalProperties:
+          type: string
+        description: '"YYYY-MM-DD" -> "P", "A", "L", "E"'
+        type: object
+      full_name:
+        type: string
+      roll_number:
+        type: string
+      student_id:
+        type: string
+      total_absent:
+        type: integer
+      total_excused:
+        type: integer
+      total_late:
+        type: integer
+      total_present:
+        type: integer
+    type: object
+  repository.NextStudentInfo:
+    properties:
+      last_roll_number:
+        type: string
+      next_admission_number:
+        type: string
+      suggested_next_roll_number:
+        type: string
+    type: object
+  repository.SchoolDefaulterRow:
+    properties:
+      admission_number:
+        type: string
+      attendance_pct:
+        type: number
+      class_name:
+        type: string
+      full_name:
+        type: string
+      guardian_name:
+        type: string
+      guardian_phone:
+        type: string
+      present_count:
+        type: integer
+      roll_number:
+        type: string
+      student_id:
+        type: string
+      total_sessions:
+        type: integer
+    type: object
+  repository.SchoolOverviewData:
+    properties:
+      class_comparisons:
+        items:
+          $ref: '#/definitions/repository.ClassComparisonRow'
+        type: array
+      overall_attendance_pct:
+        type: number
+      total_classes:
+        type: integer
+      total_defaulters:
+        type: integer
+      total_sessions:
+        type: integer
+      total_students:
+        type: integer
+    type: object
+  repository.StudentDayRow:
+    properties:
+      period_number:
+        type: integer
+      remarks:
+        type: string
+      session_date:
+        type: string
+      status:
+        type: string
+      subject_name:
+        type: string
+    type: object
+  repository.StudentSummaryRow:
+    properties:
+      attendance_pct:
+        type: number
+      period_name:
+        type: string
+      period_number:
+        type: integer
+      present_count:
+        type: integer
+      subject_name:
+        type: string
+      total_count:
+        type: integer
+    type: object
+  repository.TrendRow:
+    properties:
+      attendance_pct:
+        type: number
+      bucket:
+        type: string
+      present_count:
+        type: integer
+      total_count:
+        type: integer
+    type: object
+  services.RosterEntry:
+    properties:
+      full_name:
+        type: string
+      remarks:
+        type: string
+      roll_number:
+        type: string
+      status:
+        description: nil = unmarked
+        type: string
+      student_id:
+        type: string
+    type: object
+  services.SessionWithRoster:
+    properties:
+      roster:
+        items:
+          $ref: '#/definitions/services.RosterEntry'
+        type: array
+      session:
+        $ref: '#/definitions/models.AttendanceSession'
+    type: object
+  services.StudentSummaryResponse:
+    properties:
+      by_subject:
+        items:
+          $ref: '#/definitions/repository.StudentSummaryRow'
+        type: array
+      daily_log:
+        items:
+          $ref: '#/definitions/repository.StudentDayRow'
+        type: array
+      from:
+        type: string
+      overall_pct:
+        type: number
+      student_id:
+        type: string
+      to:
+        type: string
+    type: object
+info:
+  contact:
+    email: backend@school-attendance.edu
+    name: Backend Team
+  description: Multi-tenant REST API for school/college attendance management.
+  license:
+    name: MIT
+  title: Attendance Management API
+  version: "1.0"
+paths:
+  /api/v1/academic-years:
+    get:
+      consumes:
+      - application/json
+      description: Returns all academic years configuration for the school.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.AcademicYear'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: List all academic years
+      tags:
+      - Academic Years
+    post:
+      consumes:
+      - application/json
+      description: Registers a new academic session/year for the school.
+      parameters:
+      - description: Academic year creation payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateAcademicYearRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.AcademicYear'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Create a new academic year
+      tags:
+      - Academic Years
+  /api/v1/academic-years/{id}/archive:
+    patch:
+      consumes:
+      - application/json
+      description: Archives a past academic year to prevent modifications.
+      parameters:
+      - description: Academic Year ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Archive an academic year
+      tags:
+      - Academic Years
+  /api/v1/academic-years/{id}/set-current:
+    patch:
+      consumes:
+      - application/json
+      description: Activates a specific academic year session as the current active
+        session.
+      parameters:
+      - description: Academic Year ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Set current active academic year
+      tags:
+      - Academic Years
+  /api/v1/academic-years/{id}/unarchive:
+    patch:
+      consumes:
+      - application/json
+      description: Restores an archived academic year back to available state.
+      parameters:
+      - description: Academic Year ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Unarchive an academic year
+      tags:
+      - Academic Years
+  /api/v1/academic-years/copy-classes:
+    post:
+      consumes:
+      - application/json
+      description: Duplicates classes setup from a source academic year into a target
+        academic year.
+      parameters:
+      - description: Copy classes request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CopyClassesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: copied count
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: integer
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Copy classes schema to target academic year
+      tags:
+      - Academic Years
+  /api/v1/academic-years/copy-teachers:
+    post:
+      consumes:
+      - application/json
+      description: Copies teacher-to-class mapping from a source academic year to
+        a target academic year.
+      parameters:
+      - description: Copy teachers request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CopyTeachersRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: copied count
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: integer
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Copy class teacher assignments to target year
+      tags:
+      - Academic Years
+  /api/v1/academic-years/promote-students:
+    post:
+      consumes:
+      - application/json
+      description: Bulk promotes a list of students from a source class to a target
+        class.
+      parameters:
+      - description: Students promotion payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.PromoteStudentsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: promoted count
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: integer
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Promote students to next class
+      tags:
+      - Academic Years
+  /api/v1/analytics/class/{class_id}/defaulters:
+    get:
+      consumes:
+      - application/json
+      description: Returns a list of students in a class whose attendance percentage
+        is below a threshold.
+      parameters:
+      - description: Class ID (UUID)
+        in: path
+        name: class_id
+        required: true
+        type: string
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: from
+        required: true
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: to
+        required: true
+        type: string
+      - description: 'Attendance threshold percentage (default: 75.0)'
+        in: query
+        name: threshold
+        type: number
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/repository.DefaulterRow'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Get class attendance defaulters
+      tags:
+      - Dashboard
+  /api/v1/analytics/class/{class_id}/monthly-matrix:
+    get:
+      consumes:
+      - application/json
+      description: Returns daily attendance code grid for all active students in a
+        class for a specific month.
+      parameters:
+      - description: Class ID (UUID)
+        in: path
+        name: class_id
+        required: true
+        type: string
+      - description: 'Year (default: current year)'
+        in: query
+        name: year
+        type: integer
+      - description: 'Month (1-12) (default: current month)'
+        in: query
+        name: month
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/repository.MonthlyMatrixData'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Get monthly attendance matrix for a class
+      tags:
+      - Dashboard
+  /api/v1/analytics/class/{class_id}/summary:
+    get:
+      consumes:
+      - application/json
+      description: Returns overall attendance statistics for a specific class within
+        a date range.
+      parameters:
+      - description: Class ID (UUID)
+        in: path
+        name: class_id
+        required: true
+        type: string
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: from
+        required: true
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: to
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/repository.ClassSummaryData'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Get class attendance summary
+      tags:
+      - Dashboard
+  /api/v1/analytics/class/{class_id}/trend:
+    get:
+      consumes:
+      - application/json
+      description: Returns time-series attendance statistics (weekly/monthly) for
+        a class.
+      parameters:
+      - description: Class ID (UUID)
+        in: path
+        name: class_id
+        required: true
+        type: string
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: from
+        required: true
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: to
+        required: true
+        type: string
+      - description: 'Granularity: week, month (default: week)'
+        in: query
+        name: granularity
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/repository.TrendRow'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Get class attendance trend
+      tags:
+      - Dashboard
+  /api/v1/analytics/school/audit-logs:
+    get:
+      consumes:
+      - application/json
+      description: Returns audit records tracking all attendance state modifications.
+      parameters:
+      - description: Start date (YYYY-MM-DD) (defaults to first day of current month)
+        in: query
+        name: from
+        type: string
+      - description: End date (YYYY-MM-DD) (defaults to today)
+        in: query
+        name: to
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/repository.AuditLogRow'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Get attendance change audit logs
+      tags:
+      - Dashboard
+  /api/v1/analytics/school/defaulters:
+    get:
+      consumes:
+      - application/json
+      description: Returns school-wide list of students below the attendance threshold.
+      parameters:
+      - description: Filter by Class ID (UUID)
+        in: query
+        name: class_id
+        type: string
+      - description: Start date (YYYY-MM-DD) (defaults to first day of current month)
+        in: query
+        name: from
+        type: string
+      - description: End date (YYYY-MM-DD) (defaults to today)
+        in: query
+        name: to
+        type: string
+      - description: 'Defaulter threshold percentage (default: 75.0)'
+        in: query
+        name: threshold
+        type: number
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/repository.SchoolDefaulterRow'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Get school attendance defaulters
+      tags:
+      - Dashboard
+  /api/v1/analytics/school/overview:
+    get:
+      consumes:
+      - application/json
+      description: Returns school-wide statistics (classes, students, sessions, defaulters
+        counts, and class comparisons).
+      parameters:
+      - description: Filter by Academic Year ID (UUID)
+        in: query
+        name: academic_year_id
+        type: string
+      - description: Filter by Class ID (UUID)
+        in: query
+        name: class_id
+        type: string
+      - description: Start date (YYYY-MM-DD) (defaults to first day of current month)
+        in: query
+        name: from
+        type: string
+      - description: End date (YYYY-MM-DD) (defaults to today)
+        in: query
+        name: to
+        type: string
+      - description: 'Defaulter threshold percentage (default: 75.0)'
+        in: query
+        name: threshold
+        type: number
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/repository.SchoolOverviewData'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Get school attendance overview dashboard
+      tags:
+      - Dashboard
+  /api/v1/analytics/school/trend:
+    get:
+      consumes:
+      - application/json
+      description: Returns school-wide time-series attendance statistics (weekly/monthly).
+      parameters:
+      - description: Start date (YYYY-MM-DD) (defaults to first day of current month)
+        in: query
+        name: from
+        type: string
+      - description: End date (YYYY-MM-DD) (defaults to today)
+        in: query
+        name: to
+        type: string
+      - description: 'Granularity: week, month (default: week)'
+        in: query
+        name: granularity
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/repository.TrendRow'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Get school attendance trend
+      tags:
+      - Dashboard
+  /api/v1/analytics/student/{student_id}/summary:
+    get:
+      consumes:
+      - application/json
+      description: Returns subject-wise and daily attendance summary logs for a student
+        within a date range.
+      parameters:
+      - description: Student ID (UUID)
+        in: path
+        name: student_id
+        required: true
+        type: string
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: from
+        required: true
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: to
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/services.StudentSummaryResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Get student attendance summary
+      tags:
+      - Dashboard
+  /api/v1/attendance/sessions:
+    get:
+      consumes:
+      - application/json
+      description: Returns a paginated list of attendance sessions, optionally filtered
+        by class or date range.
+      parameters:
+      - description: Filter by Class ID (UUID)
+        in: query
+        name: class_id
+        type: string
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: from
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: to
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.AttendanceSession'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: List attendance sessions
+      tags:
+      - Attendance
+    post:
+      consumes:
+      - application/json
+      description: 'Creates a new attendance session for a class, date, and period.
+        Idempotent: returns existing if duplicate.'
+      parameters:
+      - description: Session creation payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateSessionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Session already exists (idempotent)
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.AttendanceSession'
+              type: object
+        "201":
+          description: Session created
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.AttendanceSession'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Create a new attendance session
+      tags:
+      - Attendance
+  /api/v1/attendance/sessions/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves an attendance session along with its current roster of
+        students and their marks.
+      parameters:
+      - description: Session ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/services.SessionWithRoster'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Get session details with roster
+      tags:
+      - Attendance
+  /api/v1/attendance/sessions/{id}/close:
+    post:
+      consumes:
+      - application/json
+      description: Locks the attendance session to prevent further modification and
+        triggers WhatsApp notifications to parents of absent students.
+      parameters:
+      - description: Session ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Finalize/Close attendance session
+      tags:
+      - Attendance
+  /api/v1/attendance/sessions/{id}/mark:
+    post:
+      consumes:
+      - application/json
+      description: Records attendance status for multiple students in a session.
+      parameters:
+      - description: Session ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: List of student marks
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.BulkMarkRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: marked count
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: integer
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Bulk mark attendance
+      tags:
+      - Attendance
+  /api/v1/attendance/sessions/{id}/mark/{student_id}:
+    patch:
+      consumes:
+      - application/json
+      description: Updates or records attendance status for one specific student in
+        a session.
+      parameters:
+      - description: Session ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Student ID (UUID)
+        in: path
+        name: student_id
+        required: true
+        type: string
+      - description: Single student mark details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.SingleMarkRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: success message
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: string
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Mark attendance for a single student
+      tags:
+      - Attendance
+  /api/v1/attendance/sessions/{id}/reopen:
+    post:
+      consumes:
+      - application/json
+      description: Reopens a finalized session to allow corrections (Admin only).
+      parameters:
+      - description: Session ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Reopen a closed attendance session
+      tags:
+      - Attendance
+  /api/v1/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Validates credentials and returns JWT access & refresh tokens.
+      parameters:
+      - description: Login credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.LoginResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      summary: Authenticate user and retrieve JWT tokens
+      tags:
+      - Authentication
+  /api/v1/auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Revokes the specified refresh token, logging out the user session.
+      parameters:
+      - description: Refresh token to revoke
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LogoutRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Revoke refresh token / Logout
+      tags:
+      - Authentication
+  /api/v1/auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Exchanges a valid refresh token for a new access/refresh token
+        pair.
+      parameters:
+      - description: Refresh token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RefreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.LoginResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      summary: Refresh JWT access token
+      tags:
+      - Authentication
+  /api/v1/classes:
+    get:
+      consumes:
+      - application/json
+      description: Returns a paginated list of classes, optionally filtered by academic
+        year.
+      parameters:
+      - description: Filter by Academic Year ID (UUID)
+        in: query
+        name: academic_year_id
+        type: string
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Page size (default: 20)'
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/repository.ClassWithTeacher'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: List all classes
+      tags:
+      - Classes
+    post:
+      consumes:
+      - application/json
+      description: Creates a new class inside the current or specified academic year.
+      parameters:
+      - description: Class creation payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateClassRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/repository.ClassWithTeacher'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Create a new class
+      tags:
+      - Classes
+  /api/v1/classes/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Deletes a specific class.
+      parameters:
+      - description: Class ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Delete a class
+      tags:
+      - Classes
+  /api/v1/classes/{id}/students:
+    get:
+      consumes:
+      - application/json
+      description: Returns a paginated list of students enrolled in a specific class.
+      parameters:
+      - description: Class ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Student'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: List students in a class
+      tags:
+      - Classes
+  /api/v1/classes/{id}/teacher:
+    put:
+      consumes:
+      - application/json
+      description: Assigns or unassigns a teacher to act as class teacher for a specific
+        class.
+      parameters:
+      - description: Class ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Teacher assignment payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.AssignClassTeacherRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/repository.ClassWithTeacher'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Assign a class teacher to a class
+      tags:
+      - Classes
+  /api/v1/classes/my-class:
+    get:
+      consumes:
+      - application/json
+      description: Returns the class details of which the logged-in teacher is a class
+        teacher.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/repository.ClassWithTeacher'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Get class details for the logged-in teacher
+      tags:
+      - Classes
+  /api/v1/me:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves the authenticated user's profile information.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.UserResp'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Get current user profile
+      tags:
+      - Authentication
+  /api/v1/reports/audit-logs/export:
+    get:
+      consumes:
+      - application/json
+      description: Downloads change logs history sheet as a CSV file.
+      parameters:
+      - description: Start date (YYYY-MM-DD) (defaults to first day of current month)
+        in: query
+        name: from
+        type: string
+      - description: End date (YYYY-MM-DD) (defaults to today)
+        in: query
+        name: to
+        type: string
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: Audit logs CSV file
+          schema:
+            type: file
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Export attendance audit logs to CSV
+      tags:
+      - Reports
+  /api/v1/reports/class/{class_id}/export:
+    get:
+      consumes:
+      - application/json
+      description: Downloads class attendance report as PDF or CSV.
+      parameters:
+      - description: Class ID (UUID)
+        in: path
+        name: class_id
+        required: true
+        type: string
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: from
+        required: true
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: to
+        required: true
+        type: string
+      - description: 'Format: csv, pdf (default: csv)'
+        in: query
+        name: format
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: Class report file
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Export class attendance report
+      tags:
+      - Reports
+  /api/v1/reports/class/{class_id}/monthly-matrix/export:
+    get:
+      consumes:
+      - application/json
+      description: Downloads class monthly attendance matrix code grid as a CSV file.
+      parameters:
+      - description: Class ID (UUID)
+        in: path
+        name: class_id
+        required: true
+        type: string
+      - description: 'Year (default: current year)'
+        in: query
+        name: year
+        type: integer
+      - description: 'Month (1-12) (default: current month)'
+        in: query
+        name: month
+        type: integer
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: Monthly matrix CSV file
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Export monthly attendance matrix to CSV
+      tags:
+      - Reports
+  /api/v1/reports/defaulters/export:
+    get:
+      consumes:
+      - application/json
+      description: Downloads list of attendance defaulters below a threshold as a
+        CSV file.
+      parameters:
+      - description: Filter by Class ID (UUID)
+        in: query
+        name: class_id
+        type: string
+      - description: Start date (YYYY-MM-DD) (defaults to first day of current month)
+        in: query
+        name: from
+        type: string
+      - description: End date (YYYY-MM-DD) (defaults to today)
+        in: query
+        name: to
+        type: string
+      - description: 'Defaulter threshold percentage (default: 75.0)'
+        in: query
+        name: threshold
+        type: number
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: Defaulters CSV file
+          schema:
+            type: file
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Export school defaulters report to CSV
+      tags:
+      - Reports
+  /api/v1/reports/student/{student_id}/export:
+    get:
+      consumes:
+      - application/json
+      description: Downloads individual student attendance report as a PDF.
+      parameters:
+      - description: Student ID (UUID)
+        in: path
+        name: student_id
+        required: true
+        type: string
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: from
+        required: true
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: to
+        required: true
+        type: string
+      produces:
+      - application/pdf
+      responses:
+        "200":
+          description: Student report PDF file
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Export student attendance report
+      tags:
+      - Reports
+  /api/v1/reports/templates/students:
+    get:
+      consumes:
+      - application/json
+      description: Returns a starter template file for bulk student import.
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: Students template CSV file
+          schema:
+            type: file
+      security:
+      - Bearer: []
+      summary: Download CSV import template for students
+      tags:
+      - Reports
+  /api/v1/reports/templates/teachers:
+    get:
+      consumes:
+      - application/json
+      description: Returns a starter template file for bulk teacher import.
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: Teachers template CSV file
+          schema:
+            type: file
+      security:
+      - Bearer: []
+      summary: Download CSV import template for teachers
+      tags:
+      - Reports
+  /api/v1/school-days/holidays:
+    get:
+      consumes:
+      - application/json
+      description: Returns custom holiday/non-working dates for a specified range.
+      parameters:
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: from
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: to
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.DateHoliday'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Get school holidays
+      tags:
+      - Calendar
+    post:
+      consumes:
+      - application/json
+      description: Declares a specific date as a holiday or custom school day.
+      parameters:
+      - description: Holiday creation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateHolidayRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.DateHoliday'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Add a new holiday/event date
+      tags:
+      - Calendar
+  /api/v1/school-days/holidays/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Deletes a declared holiday/custom date.
+      parameters:
+      - description: Holiday ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Remove a holiday date
+      tags:
+      - Calendar
+  /api/v1/school-days/weekly:
+    get:
+      consumes:
+      - application/json
+      description: Returns the school working days configuration (0=Sunday, 1=Monday,
+        etc.).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.WeeklySchedule'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Get school's weekly working schedule
+      tags:
+      - Calendar
+    put:
+      consumes:
+      - application/json
+      description: Updates the working days weekly configuration.
+      parameters:
+      - description: Weekly schedule configuration
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateWeeklyScheduleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.WeeklySchedule'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Update school's weekly working schedule
+      tags:
+      - Calendar
+  /api/v1/students:
+    get:
+      consumes:
+      - application/json
+      description: Returns a paginated list of students, optionally filtered by academic
+        year, class, or search query.
+      parameters:
+      - description: Filter by Academic Year ID (UUID)
+        in: query
+        name: academic_year_id
+        type: string
+      - description: Filter by Class ID (UUID)
+        in: query
+        name: class_id
+        type: string
+      - description: Search by student name or roll number
+        in: query
+        name: search
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Student'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: List all students
+      tags:
+      - Students
+    post:
+      consumes:
+      - application/json
+      description: Registers a new student in a specific class.
+      parameters:
+      - description: Student creation payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateStudentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Student'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Create a new student
+      tags:
+      - Students
+  /api/v1/students/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Hard-deletes a student from the database.
+      parameters:
+      - description: Student ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Delete a student record
+      tags:
+      - Students
+    put:
+      consumes:
+      - application/json
+      description: Updates the registration profile of a specific student.
+      parameters:
+      - description: Student ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Student update payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateStudentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Student'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Update student details
+      tags:
+      - Students
+  /api/v1/students/{id}/deactivate:
+    patch:
+      consumes:
+      - application/json
+      description: Soft deactivates a student to prevent them from showing up on active
+        rosters.
+      parameters:
+      - description: Student ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Deactivate a student profile
+      tags:
+      - Students
+  /api/v1/students/bulk-import:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Imports multiple students via a multipart CSV file upload.
+      parameters:
+      - description: CSV file containing students list
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: imported count and skip details
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Bulk import students from CSV
+      tags:
+      - Students
+  /api/v1/students/next-info:
+    get:
+      consumes:
+      - application/json
+      description: Calculates the next sequential roll number and admission number
+        for a class.
+      parameters:
+      - description: Class ID (UUID)
+        in: query
+        name: class_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/repository.NextStudentInfo'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Get suggestion for next student's roll and admission number
+      tags:
+      - Students
+  /api/v1/teachers:
+    get:
+      consumes:
+      - application/json
+      description: Returns a paginated list of all teachers in the school.
+      parameters:
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.User'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: List all teachers
+      tags:
+      - Teachers
+    post:
+      consumes:
+      - application/json
+      description: Registers a new teacher in the school database.
+      parameters:
+      - description: Teacher creation payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateTeacherRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.User'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Create a new teacher user
+      tags:
+      - Teachers
+  /api/v1/teachers/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Hard-deletes a teacher user account.
+      parameters:
+      - description: Teacher User ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Delete a teacher user
+      tags:
+      - Teachers
+    put:
+      consumes:
+      - application/json
+      description: Updates the profile details (name, phone) of a specific teacher.
+      parameters:
+      - description: Teacher User ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Teacher update payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateTeacherRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.User'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Update teacher details
+      tags:
+      - Teachers
+  /api/v1/teachers/{id}/activate:
+    patch:
+      consumes:
+      - application/json
+      description: Activates a previously deactivated teacher account.
+      parameters:
+      - description: Teacher User ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Activate a teacher account
+      tags:
+      - Teachers
+  /api/v1/teachers/{id}/deactivate:
+    patch:
+      consumes:
+      - application/json
+      description: Deactivates a teacher account, preventing them from logging in.
+      parameters:
+      - description: Teacher User ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Deactivate a teacher account
+      tags:
+      - Teachers
+  /api/v1/teachers/{id}/reset-password:
+    post:
+      consumes:
+      - application/json
+      description: Forces a password reset for a specific teacher's account.
+      parameters:
+      - description: Teacher User ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Password details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ResetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Reset a teacher's password
+      tags:
+      - Teachers
+  /api/v1/users/me:
+    put:
+      consumes:
+      - application/json
+      description: Updates the authenticated user's full name and/or phone number.
+      parameters:
+      - description: Profile details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateProfileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.UserResp'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Update current user profile
+      tags:
+      - Authentication
+  /api/v1/users/me/change-password:
+    post:
+      consumes:
+      - application/json
+      description: Changes the authenticated user's password.
+      parameters:
+      - description: Password details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ChangePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/httpx.Envelope'
+            - properties:
+                error:
+                  $ref: '#/definitions/httpx.ErrBody'
+              type: object
+      security:
+      - Bearer: []
+      summary: Change user password
+      tags:
+      - Authentication
+  /api/v1/webhooks/whatsapp:
+    get:
+      consumes:
+      - text/plain
+      description: Handles Meta GET verification request for the WhatsApp Business
+        Webhook using hub challenge.
+      parameters:
+      - description: Subscribe mode
+        in: query
+        name: hub.mode
+        required: true
+        type: string
+      - description: Verification token
+        in: query
+        name: hub.verify_token
+        required: true
+        type: string
+      - description: Challenge token to be echoed back
+        in: query
+        name: hub.challenge
+        required: true
+        type: string
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: hub.challenge value
+          schema:
+            type: string
+        "403":
+          description: 'Forbidden: verification token mismatch'
+          schema:
+            type: string
+      summary: Verify WhatsApp webhook
+      tags:
+      - Webhook
+    post:
+      consumes:
+      - application/json
+      description: Handles incoming POST events (status updates like sent/delivered/read/failed
+        or incoming messages) from Meta.
+      parameters:
+      - description: HMAC SHA256 signature in X-Hub-Signature-256 header
+        in: header
+        name: signature-header
+        type: string
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: EVENT_RECEIVED
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: 'Unauthorized: invalid signature'
+          schema:
+            type: string
+      summary: Handle WhatsApp webhook notifications
+      tags:
+      - Webhook
+  /webhook/whatsapp:
+    get:
+      consumes:
+      - text/plain
+      description: Handles Meta GET verification request for the WhatsApp Business
+        Webhook using hub challenge.
+      parameters:
+      - description: Subscribe mode
+        in: query
+        name: hub.mode
+        required: true
+        type: string
+      - description: Verification token
+        in: query
+        name: hub.verify_token
+        required: true
+        type: string
+      - description: Challenge token to be echoed back
+        in: query
+        name: hub.challenge
+        required: true
+        type: string
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: hub.challenge value
+          schema:
+            type: string
+        "403":
+          description: 'Forbidden: verification token mismatch'
+          schema:
+            type: string
+      summary: Verify WhatsApp webhook
+      tags:
+      - Webhook
+    post:
+      consumes:
+      - application/json
+      description: Handles incoming POST events (status updates like sent/delivered/read/failed
+        or incoming messages) from Meta.
+      parameters:
+      - description: HMAC SHA256 signature in X-Hub-Signature-256 header
+        in: header
+        name: signature-header
+        type: string
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: EVENT_RECEIVED
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "401":
+          description: 'Unauthorized: invalid signature'
+          schema:
+            type: string
+      summary: Handle WhatsApp webhook notifications
+      tags:
+      - Webhook
+securityDefinitions:
+  Bearer:
+    description: Type "Bearer <token>" to authenticate.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

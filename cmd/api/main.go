@@ -16,6 +16,19 @@ import (
 	"github.com/school/attendance-backend/internal/server"
 )
 
+// @title Attendance Management API
+// @version 1.0
+// @description Multi-tenant REST API for school/college attendance management.
+//
+// @contact.name Backend Team
+// @contact.email backend@school-attendance.edu
+//
+// @license.name MIT
+//
+// @securityDefinitions.apikey Bearer
+// @in header
+// @name Authorization
+// @description Type "Bearer <token>" to authenticate.
 func main() {
 	// ── Logging ────────────────────────────────────────────────────────────────
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix

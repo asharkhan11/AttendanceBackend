@@ -15,6 +15,11 @@ func Logger(next http.Handler) http.Handler {
 
 		next.ServeHTTP(ww, r)
 
+		// Skip logging for routine health checks unless they return an error
+		if r.URL.Path == "/healthz" && ww.status < 400 {
+			return
+		}
+
 		reqID := RequestIDFromContext(r.Context())
 		var event *zerolog.Event
 		if ww.status >= 500 {

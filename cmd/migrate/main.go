@@ -63,12 +63,17 @@ func main() {
 	cmd := os.Args[1]
 	switch cmd {
 	case "up":
-		if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		err := m.Up()
+		if err != nil && err != migrate.ErrNoChange {
 			fmt.Fprintln(os.Stderr, "migrate up:", err)
 			os.Exit(1)
 		}
 		v, _, _ := m.Version()
-		fmt.Printf("migrations applied — now at version %d\n", v)
+		if err == migrate.ErrNoChange {
+			fmt.Printf("no new migrations to apply — currently at version %d\n", v)
+		} else {
+			fmt.Printf("migrations applied — now at version %d\n", v)
+		}
 
 	case "down":
 		n := 1

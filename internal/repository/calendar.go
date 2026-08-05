@@ -17,6 +17,8 @@ func NewCalendarRepo(db *DB) *CalendarRepo {
 	return &CalendarRepo{db: db}
 }
 
+func (r *CalendarRepo) Db() *DB { return r.db }
+
 var dayNames = map[int16]string{
 	0: "Sunday",
 	1: "Monday",

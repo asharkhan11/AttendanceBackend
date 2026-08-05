@@ -6,13 +6,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 type AnalyticsRepo struct{ db *DB }
 
 func NewAnalyticsRepo(db *DB) *AnalyticsRepo { return &AnalyticsRepo{db: db} }
-func (r *AnalyticsRepo) q(ctx context.Context) pgx.Tx { return r.db.Querier(ctx) }
+func (r *AnalyticsRepo) Db() *DB { return r.db }
+func (r *AnalyticsRepo) q(ctx context.Context) DBTX { return r.db.Querier(ctx) }
 
 // ClassSummaryData is the overall attendance metrics for a class.
 type ClassSummaryData struct {
@@ -32,7 +32,7 @@ func (r *AnalyticsRepo) ClassSummary(ctx context.Context, classID uuid.UUID, fro
 	q := `
 		SELECT
 			$1::uuid AS class_id,
-			COALESCE((SELECT COUNT(*) FROM students WHERE class_id = $1 AND is_active = true), 0) AS total_students,
+			COALESCE((SELECT COUNT(*) FROM students st LEFT JOIN student_class_enrollments e ON e.student_id = st.id AND e.class_id = $1 WHERE (e.class_id = $1 OR (e.class_id IS NULL AND st.class_id = $1)) AND st.is_active = true), 0) AS total_students,
 			COALESCE(COUNT(DISTINCT s.id), 0) AS total_sessions,
 			COALESCE(COUNT(ar.id), 0) AS total_records,
 			COALESCE(COUNT(ar.id) FILTER (WHERE ar.status = 'present'), 0) AS present,
@@ -149,15 +149,16 @@ func (r *AnalyticsRepo) Defaulters(ctx context.Context, classID uuid.UUID, from,
 		SELECT
 			st.id,
 			st.full_name,
-			st.roll_number,
+			COALESCE(e.roll_number, st.roll_number) AS roll_number,
 			COALESCE(ROUND(100.0 * COUNT(*) FILTER (WHERE ar.status='present') / NULLIF(COUNT(*),0), 2), 0) AS pct
 		FROM students st
+		LEFT JOIN student_class_enrollments e ON e.student_id = st.id AND e.class_id = $1
 		JOIN attendance_records ar ON ar.student_id=st.id
-		JOIN attendance_sessions s ON s.id=ar.session_id
-		WHERE st.class_id=$1
+		JOIN attendance_sessions s ON s.id=ar.session_id AND s.class_id=$1
+		WHERE (e.class_id=$1 OR (e.class_id IS NULL AND st.class_id=$1))
 		  AND s.session_date BETWEEN $2 AND $3
 		  AND st.is_active=true
-		GROUP BY st.id, st.full_name, st.roll_number
+		GROUP BY st.id, st.full_name, COALESCE(e.roll_number, st.roll_number)
 		HAVING COALESCE(ROUND(100.0 * COUNT(*) FILTER (WHERE ar.status='present') / NULLIF(COUNT(*),0), 2), 0) < $4
 		ORDER BY pct ASC`, classID, from, to, threshold)
 	if err != nil {
@@ -270,16 +271,17 @@ func (r *AnalyticsRepo) ClassRosterWithAttendance(ctx context.Context, classID u
 		SELECT
 			st.id,
 			st.full_name,
-			st.roll_number,
+			COALESCE(e.roll_number, st.roll_number) AS roll_number,
 			COALESCE(ROUND(100.0 * COUNT(ar.id) FILTER (WHERE ar.status='present') / NULLIF(COUNT(ar.id),0), 2), 0),
 			COALESCE(COUNT(ar.id) FILTER (WHERE ar.status='present'), 0),
 			COALESCE(COUNT(ar.id), 0)
 		FROM students st
+		LEFT JOIN student_class_enrollments e ON e.student_id = st.id AND e.class_id = $1
 		LEFT JOIN attendance_records ar ON ar.student_id=st.id
-		LEFT JOIN attendance_sessions s ON s.id=ar.session_id AND s.session_date BETWEEN $2 AND $3
-		WHERE st.class_id=$1 AND st.is_active=true
-		GROUP BY st.id, st.full_name, st.roll_number
-		ORDER BY st.roll_number`, classID, from, to)
+		LEFT JOIN attendance_sessions s ON s.id=ar.session_id AND s.class_id=$1 AND s.session_date BETWEEN $2 AND $3
+		WHERE (e.class_id=$1 OR (e.class_id IS NULL AND st.class_id=$1)) AND st.is_active=true
+		GROUP BY st.id, st.full_name, COALESCE(e.roll_number, st.roll_number)
+		ORDER BY COALESCE(e.roll_number, st.roll_number)`, classID, from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -509,8 +511,12 @@ func (r *AnalyticsRepo) MonthlyMatrix(ctx context.Context, classID uuid.UUID, ye
 		Students:    []*MonthlyMatrixStudent{},
 	}
 
-	// 1. Fetch active students in class
-	stRows, err := r.q(ctx).Query(ctx, `SELECT id, admission_number, roll_number, full_name FROM students WHERE class_id=$1 AND is_active=true ORDER BY roll_number`, classID)
+	stRows, err := r.q(ctx).Query(ctx, `
+		SELECT st.id, st.admission_number, COALESCE(e.roll_number, st.roll_number), st.full_name
+		FROM students st
+		LEFT JOIN student_class_enrollments e ON e.student_id = st.id AND e.class_id = $1
+		WHERE (e.class_id = $1 OR (e.class_id IS NULL AND st.class_id = $1)) AND st.is_active=true
+		ORDER BY COALESCE(e.roll_number, st.roll_number)`, classID)
 	if err != nil {
 		return nil, err
 	}

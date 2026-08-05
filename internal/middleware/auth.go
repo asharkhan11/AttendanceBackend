@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/rs/zerolog/log"
 	"github.com/school/attendance-backend/internal/apperror"
 	"github.com/school/attendance-backend/internal/auth"
 	"github.com/school/attendance-backend/internal/httpx"
@@ -46,23 +45,7 @@ func TenantContext(db *repository.DB) func(http.Handler) http.Handler {
 				httpx.WriteError(w, apperror.Unauthorized("no claims in context"))
 				return
 			}
-
-			ctx, tx, err := db.WithTenantTx(r.Context(), claims.SchoolID.String())
-			if err != nil {
-				log.Error().Err(err).Str("request_id", RequestIDFromContext(r.Context())).Msg("tenant context")
-				httpx.WriteError(w, apperror.Internal(err))
-				return
-			}
-			defer func() { _ = tx.Rollback(r.Context()) }()
-
-			ww := &responseWriter{ResponseWriter: w, status: http.StatusOK}
-			next.ServeHTTP(ww, r.WithContext(ctx))
-
-			if ww.status < 500 {
-				if err := tx.Commit(r.Context()); err != nil {
-					log.Error().Err(err).Msg("commit tx")
-				}
-			}
+			next.ServeHTTP(w, r)
 		})
 	}
 }
