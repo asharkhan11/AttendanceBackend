@@ -398,6 +398,43 @@ func (h *TeacherHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteNoContent(w)
 }
 
+// BulkImport godoc
+// @Summary Bulk import teachers from CSV
+// @Description Imports multiple teachers via a multipart CSV file upload.
+// @Tags Teachers
+// @Accept multipart/form-data
+// @Produce json
+// @Security Bearer
+// @Param file formData file true "CSV file containing teachers list"
+// @Success 201 {object} httpx.Envelope{data=map[string]any} "imported count and skip details"
+// @Failure 400 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Failure 401 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Failure 403 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Router /api/v1/teachers/bulk-import [post]
+func (h *TeacherHandler) BulkImport(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		httpx.WriteError(w, apperror.Validation("invalid multipart form"))
+		return
+	}
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		httpx.WriteError(w, apperror.Validation("file field required"))
+		return
+	}
+	defer file.Close()
+
+	count, errs, err := h.svc.BulkImportCSV(r.Context(), file)
+	if err != nil {
+		httpx.WriteError(w, err)
+		return
+	}
+	if count == 0 && len(errs) > 0 {
+		httpx.WriteError(w, apperror.Validation("bulk import failed", apperror.FieldError{Field: "csv", Issue: strings.Join(errs, "; ")}))
+		return
+	}
+	httpx.WriteCreated(w, map[string]any{"imported": count, "errors": errs})
+}
+
 // ─── Students ─────────────────────────────────────────────────────────────────
 
 type StudentHandler struct{ svc *services.StudentService }
@@ -749,9 +786,19 @@ func (h *StudentHandler) BulkImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
-	count, errs, err := h.svc.BulkImportCSV(r.Context(), file)
+
+	classIDStr := r.FormValue("class_id")
+	if classIDStr == "" {
+		classIDStr = r.URL.Query().Get("class_id")
+	}
+
+	count, errs, err := h.svc.BulkImportCSV(r.Context(), file, classIDStr)
 	if err != nil {
 		httpx.WriteError(w, err)
+		return
+	}
+	if count == 0 && len(errs) > 0 {
+		httpx.WriteError(w, apperror.Validation("bulk import failed", apperror.FieldError{Field: "csv", Issue: strings.Join(errs, "; ")}))
 		return
 	}
 	httpx.WriteCreated(w, map[string]any{"imported": count, "errors": errs})

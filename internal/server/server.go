@@ -144,6 +144,7 @@ func NewRouter(cfg *config.Config, pool *pgxpool.Pool) http.Handler {
 			r.Patch("/api/v1/teachers/{id}/activate", teacherH.Activate)
 			r.Delete("/api/v1/teachers/{id}", teacherH.Delete)
 			r.Post("/api/v1/teachers/{id}/reset-password", teacherH.ResetPassword)
+			r.Post("/api/v1/teachers/bulk-import", teacherH.BulkImport)
 
 			// Students (admin full CRUD)
 			r.Get("/api/v1/students", studentH.List)

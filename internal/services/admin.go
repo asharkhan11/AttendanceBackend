@@ -167,6 +167,88 @@ func (s *TeacherService) ResetPassword(ctx context.Context, id uuid.UUID, req *d
 	return nil
 }
 
+// BulkImportCSV reads a CSV reader and imports teacher accounts. Returns count and any row errors.
+func (s *TeacherService) BulkImportCSV(ctx context.Context, r io.Reader) (int, []string, error) {
+	claims := auth.ClaimsFromContext(ctx)
+	reader := csv.NewReader(r)
+	records, err := reader.ReadAll()
+	if err != nil {
+		return 0, nil, apperror.Validation("invalid CSV format: " + err.Error())
+	}
+	if len(records) < 2 {
+		return 0, nil, apperror.Validation("CSV must have a header row and at least one data row")
+	}
+
+	headerMap := make(map[string]int)
+	for idx, col := range records[0] {
+		cleaned := strings.ToLower(strings.TrimSpace(col))
+		cleaned = strings.TrimPrefix(cleaned, "\ufeff")
+		headerMap[cleaned] = idx
+	}
+
+	var errs []string
+	importedCount := 0
+
+	for i, row := range records[1:] {
+		lineNo := i + 2
+		if len(row) == 0 || (len(row) == 1 && strings.TrimSpace(row[0]) == "") {
+			continue // skip empty lines
+		}
+
+		getCol := func(name string, defaultIdx int) string {
+			if idx, ok := headerMap[name]; ok && idx < len(row) {
+				return strings.TrimSpace(row[idx])
+			}
+			if defaultIdx >= 0 && defaultIdx < len(row) {
+				return strings.TrimSpace(row[defaultIdx])
+			}
+			return ""
+		}
+
+		fullName := getCol("full_name", 0)
+		email := getCol("email", 1)
+		phoneStr := getCol("phone", 2)
+		password := getCol("password", 3)
+
+		if fullName == "" {
+			errs = append(errs, fmt.Sprintf("line %d: full_name is required", lineNo))
+			continue
+		}
+		if email == "" {
+			errs = append(errs, fmt.Sprintf("line %d: email is required", lineNo))
+			continue
+		}
+		if password == "" {
+			errs = append(errs, fmt.Sprintf("line %d: password is required", lineNo))
+			continue
+		}
+
+		hash, err := s.passSvc.HashPassword(password)
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("line %d: failed to hash password", lineNo))
+			continue
+		}
+
+		var phone *string
+		if phoneStr != "" {
+			phone = &phoneStr
+		}
+
+		_, err = s.userRepo.Create(ctx, claims.SchoolID, models.RoleTeacher, fullName, email, hash, phone)
+		if err != nil {
+			if isDuplicateError(err) {
+				errs = append(errs, fmt.Sprintf("line %d: teacher with email %q already exists", lineNo, email))
+				continue
+			}
+			errs = append(errs, fmt.Sprintf("line %d: %s", lineNo, err.Error()))
+			continue
+		}
+		importedCount++
+	}
+
+	return importedCount, errs, nil
+}
+
 // ─── Student Service ──────────────────────────────────────────────────────────
 
 type StudentService struct {
@@ -394,15 +476,31 @@ func (s *StudentService) Deactivate(ctx context.Context, id uuid.UUID) error {
 }
 
 // BulkImportCSV reads a CSV reader and imports students. Returns count and any row errors.
-func (s *StudentService) BulkImportCSV(ctx context.Context, r io.Reader) (int, []string, error) {
+func (s *StudentService) BulkImportCSV(ctx context.Context, r io.Reader, classIDParam string) (int, []string, error) {
 	claims := auth.ClaimsFromContext(ctx)
 	reader := csv.NewReader(r)
 	records, err := reader.ReadAll()
 	if err != nil {
-		return 0, nil, apperror.Validation("invalid CSV: " + err.Error())
+		return 0, nil, apperror.Validation("invalid CSV format: " + err.Error())
 	}
 	if len(records) < 2 {
 		return 0, nil, apperror.Validation("CSV must have a header row and at least one data row")
+	}
+
+	var defaultClassID *uuid.UUID
+	if classIDParam != "" {
+		id, err := uuid.Parse(classIDParam)
+		if err == nil {
+			defaultClassID = &id
+		}
+	}
+
+	// Map header names to column indices
+	headerMap := make(map[string]int)
+	for idx, col := range records[0] {
+		cleaned := strings.ToLower(strings.TrimSpace(col))
+		cleaned = strings.TrimPrefix(cleaned, "\ufeff")
+		headerMap[cleaned] = idx
 	}
 
 	var errs []string
@@ -410,31 +508,91 @@ func (s *StudentService) BulkImportCSV(ctx context.Context, r io.Reader) (int, [
 
 	for i, row := range records[1:] {
 		lineNo := i + 2
-		if len(row) < 5 {
-			errs = append(errs, fmt.Sprintf("line %d: not enough columns", lineNo))
+		if len(row) == 0 || (len(row) == 1 && strings.TrimSpace(row[0]) == "") {
+			continue // skip empty lines
+		}
+
+		getCol := func(name string, defaultIdx int) string {
+			if idx, ok := headerMap[name]; ok && idx < len(row) {
+				return strings.TrimSpace(row[idx])
+			}
+			if defaultIdx >= 0 && defaultIdx < len(row) {
+				return strings.TrimSpace(row[defaultIdx])
+			}
+			return ""
+		}
+
+		// Determine Class ID
+		var studentClassID uuid.UUID
+		classIDVal := getCol("class_id", -1)
+		if classIDVal != "" {
+			parsedID, err := uuid.Parse(classIDVal)
+			if err != nil {
+				errs = append(errs, fmt.Sprintf("line %d: invalid class_id %q", lineNo, classIDVal))
+				continue
+			}
+			studentClassID = parsedID
+		} else if defaultClassID != nil {
+			studentClassID = *defaultClassID
+		} else {
+			errs = append(errs, fmt.Sprintf("line %d: class_id is missing or invalid", lineNo))
 			continue
 		}
-		classID, err := uuid.Parse(strings.TrimSpace(row[0]))
-		if err != nil {
-			errs = append(errs, fmt.Sprintf("line %d: invalid class_id", lineNo))
+
+		// Positional fallbacks match template order:
+		// 0: class_id, 1: admission_number, 2: roll_number, 3: full_name, 4: gender, 5: dob, 6: guardian_name, 7: guardian_phone
+		admNum := getCol("admission_number", 1)
+		rollNum := getCol("roll_number", 2)
+		fullName := getCol("full_name", 3)
+		genderStr := getCol("gender", 4)
+		dobStr := getCol("dob", 5)
+		guardianNameStr := getCol("guardian_name", 6)
+		guardianPhoneStr := getCol("guardian_phone", 7)
+
+		if fullName == "" {
+			errs = append(errs, fmt.Sprintf("line %d: full_name is required", lineNo))
 			continue
 		}
+		if admNum == "" {
+			errs = append(errs, fmt.Sprintf("line %d: admission_number is required", lineNo))
+			continue
+		}
+
 		st := &models.Student{
 			SchoolID:        claims.SchoolID,
-			ClassID:         classID,
-			AdmissionNumber: strings.TrimSpace(row[1]),
-			RollNumber:      strings.TrimSpace(row[2]),
-			FullName:        strings.TrimSpace(row[3]),
+			ClassID:         studentClassID,
+			AdmissionNumber: admNum,
+			RollNumber:      rollNum,
+			FullName:        fullName,
 		}
-		if len(row) > 4 && row[4] != "" {
-			g := strings.TrimSpace(row[4])
+
+		if genderStr != "" {
+			g := genderStr
 			st.Gender = &g
 		}
+		if guardianNameStr != "" {
+			gn := guardianNameStr
+			st.GuardianName = &gn
+		}
+		if guardianPhoneStr != "" {
+			gp := guardianPhoneStr
+			st.GuardianPhone = &gp
+		}
+		if dobStr != "" {
+			t, err := time.Parse("2006-01-02", dobStr)
+			if err == nil {
+				st.DOB = &t
+			}
+		}
+
 		students = append(students, st)
 	}
 
-	if len(errs) > 0 {
-		return 0, errs, nil
+	if len(students) == 0 {
+		if len(errs) > 0 {
+			return 0, errs, nil
+		}
+		return 0, nil, apperror.Validation("no valid student records found in CSV")
 	}
 
 	err = s.studentRepo.Db().RunInTx(ctx, claims.SchoolID.String(), func(ctx context.Context) error {
@@ -444,7 +602,7 @@ func (s *StudentService) BulkImportCSV(ctx context.Context, r io.Reader) (int, [
 		return 0, nil, apperror.Internal(err)
 	}
 
-	return len(students), nil, nil
+	return len(students), errs, nil
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

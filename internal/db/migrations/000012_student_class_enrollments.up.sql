@@ -48,3 +48,6 @@ JOIN attendance_sessions sess ON ar.session_id = sess.id
 JOIN classes c ON sess.class_id = c.id
 JOIN students s ON ar.student_id = s.id
 ON CONFLICT (student_id, academic_year_id) DO NOTHING;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON student_class_enrollments TO attendance_app;
+

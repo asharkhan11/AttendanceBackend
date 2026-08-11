@@ -3,9 +3,9 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/school/attendance-backend/internal/models"
 )
 
@@ -22,51 +22,58 @@ func (r *StudentBulkRepository) BulkCreate(ctx context.Context, students []*mode
 	if tx == nil {
 		return fmt.Errorf("no active transaction in context")
 	}
+	if len(students) == 0 {
+		return nil
+	}
 
-	rows := make([][]any, len(students))
+	ids := make([]uuid.UUID, len(students))
+	schoolIDs := make([]uuid.UUID, len(students))
+	classIDs := make([]uuid.UUID, len(students))
+	admissionNums := make([]string, len(students))
+	rollNums := make([]string, len(students))
+	fullNames := make([]string, len(students))
+	genders := make([]*string, len(students))
+	dobs := make([]*time.Time, len(students))
+	guardianNames := make([]*string, len(students))
+	guardianPhones := make([]*string, len(students))
+
 	for i, s := range students {
 		if s.ID == uuid.Nil {
 			s.ID = uuid.New()
 		}
-		rows[i] = []any{
-			s.ID,
-			s.SchoolID,
-			s.ClassID,
-			s.AdmissionNumber,
-			s.RollNumber,
-			s.FullName,
-			s.Gender,
-			s.DOB,
-			s.GuardianName,
-			s.GuardianPhone,
-		}
+		ids[i] = s.ID
+		schoolIDs[i] = s.SchoolID
+		classIDs[i] = s.ClassID
+		admissionNums[i] = s.AdmissionNumber
+		rollNums[i] = s.RollNumber
+		fullNames[i] = s.FullName
+		genders[i] = s.Gender
+		dobs[i] = s.DOB
+		guardianNames[i] = s.GuardianName
+		guardianPhones[i] = s.GuardianPhone
 	}
 
-	_, err := tx.CopyFrom(
-		ctx,
-		pgx.Identifier{"students"},
-		[]string{
-			"id",
-			"school_id",
-			"class_id",
-			"admission_number",
-			"roll_number",
-			"full_name",
-			"gender",
-			"dob",
-			"guardian_name",
-			"guardian_phone",
-		},
-		pgx.CopyFromRows(rows),
-	)
+	query := `
+		INSERT INTO students (id, school_id, class_id, admission_number, roll_number, full_name, gender, dob, guardian_name, guardian_phone)
+		SELECT * FROM UNNEST(
+			$1::uuid[],
+			$2::uuid[],
+			$3::uuid[],
+			$4::text[],
+			$5::text[],
+			$6::text[],
+			$7::text[],
+			$8::date[],
+			$9::text[],
+			$10::text[]
+		)
+	`
+	_, err := tx.Exec(ctx, query, ids, schoolIDs, classIDs, admissionNums, rollNums, fullNames, genders, dobs, guardianNames, guardianPhones)
 	if err != nil {
 		return fmt.Errorf("bulk create students: %w", err)
 	}
 
-	studentIDs := make([]uuid.UUID, len(students))
-	for i, s := range students {
-		studentIDs[i] = s.ID
-	}
+	studentIDs := ids
 
 	_, err = tx.Exec(ctx, `
 		INSERT INTO student_class_enrollments (school_id, student_id, class_id, academic_year_id, roll_number, status)

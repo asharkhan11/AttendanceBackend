@@ -10,17 +10,17 @@ services:
       - ${ENV_FILE:-../.env}
 
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgres://attendance_app:AttendanceApp2026@155.248.241.83:5432/attendance?sslmode=disable}
+      DATABASE_URL: ${DATABASE_URL:-postgres://attendance_app:AttendanceApp2026@10.0.0.50:5432/attendance?sslmode=disable}
       PORT: ${PORT:-8080}
       ENV: ${ENV:-production}
 
     ports:
-      - "0.0.0.0:8080:8080"
+      - "127.0.0.1:8080:8080"
 
     stop_grace_period: 30s
 
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/healthz" ]
       interval: 30s
       timeout: 3s
       start_period: 5s

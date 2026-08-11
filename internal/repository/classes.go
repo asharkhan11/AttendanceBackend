@@ -100,11 +100,13 @@ func (r *AcademicYearRepo) PromoteStudents(ctx context.Context, sourceClassID, t
 		return 0, fmt.Errorf("target class not found: %w", err)
 	}
 
-	_, _ = r.q(ctx).Exec(ctx,
+	if _, err := r.q(ctx).Exec(ctx,
 		`UPDATE student_class_enrollments
 		 SET status='promoted', updated_at=now()
 		 WHERE class_id=$1 AND student_id=ANY($2)`,
-		sourceClassID, studentIDs)
+		sourceClassID, studentIDs); err != nil {
+		return 0, fmt.Errorf("update enrollment status to promoted: %w", err)
+	}
 
 	_, err = r.q(ctx).Exec(ctx,
 		`INSERT INTO student_class_enrollments (school_id, student_id, class_id, academic_year_id, roll_number, status)

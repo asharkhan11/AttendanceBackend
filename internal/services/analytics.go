@@ -472,9 +472,9 @@ func (s *AnalyticsService) ExportAuditLogCSV(ctx context.Context, schoolID uuid.
 func (s *AnalyticsService) GetStudentTemplateCSV() []byte {
 	var buf bytes.Buffer
 	w := csv.NewWriter(&buf)
-	_ = w.Write([]string{"admission_number", "roll_number", "full_name", "gender", "dob", "guardian_name", "guardian_phone"})
-	_ = w.Write([]string{"ADM2026099", "01", "Sample Student", "M", "2010-05-15", "Parent Name", "+91-9876543210"})
-	_ = w.Write([]string{"ADM2026100", "02", "Jane Doe", "F", "2010-08-20", "John Doe", "+91-9876543211"})
+	_ = w.Write([]string{"class_id", "admission_number", "roll_number", "full_name", "gender", "dob", "guardian_name", "guardian_phone"})
+	_ = w.Write([]string{"", "ADM2026099", "01", "Sample Student", "M", "2010-05-15", "Parent Name", "+91-9876543210"})
+	_ = w.Write([]string{"", "ADM2026100", "02", "Jane Doe", "F", "2010-08-20", "John Doe", "+91-9876543211"})
 	w.Flush()
 	return buf.Bytes()
 }

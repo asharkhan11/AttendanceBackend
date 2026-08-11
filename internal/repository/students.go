@@ -54,25 +54,28 @@ func (r *StudentRepo) ListBySchool(ctx context.Context, schoolID uuid.UUID, acad
 		return nil, 0, fmt.Errorf("count students: %w", err)
 	}
 
-	q := fmt.Sprintf(`SELECT s.id,s.school_id,COALESCE(e.class_id, s.class_id) AS class_id,s.admission_number,COALESCE(e.roll_number, s.roll_number) AS roll_number,s.full_name,
+	q := fmt.Sprintf(`SELECT DISTINCT ON (s.id) s.id,s.school_id,COALESCE(e.class_id, s.class_id) AS class_id,s.admission_number,COALESCE(e.roll_number, s.roll_number) AS roll_number,s.full_name,
 	                         s.gender,s.dob,s.guardian_name,s.guardian_phone,s.is_active,s.created_at,s.updated_at
 	                  FROM %s
 	                  WHERE %s
-	                  ORDER BY COALESCE(e.roll_number, s.roll_number) LIMIT $%d OFFSET $%d`, fromClause, where, len(args)+1, len(args)+2)
+	                  ORDER BY s.id, COALESCE(e.roll_number, s.roll_number) LIMIT $%d OFFSET $%d`, fromClause, where, len(args)+1, len(args)+2)
 	args = append(args, limit, offset)
 	rows, err := r.q(ctx).Query(ctx, q, args...)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("query students: %w", err)
 	}
 	defer rows.Close()
 
-	var out []*models.Student
+	out := make([]*models.Student, 0)
 	for rows.Next() {
 		s, err := scanStudentRow(rows)
 		if err != nil {
 			return nil, 0, err
 		}
 		out = append(out, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("students rows err: %w", err)
 	}
 	return out, total, nil
 }
@@ -132,11 +135,13 @@ func (r *StudentRepo) Create(ctx context.Context, s *models.Student) (*models.St
 
 		var ayID uuid.UUID
 		if err := r.q(ctx).QueryRow(ctx, `SELECT academic_year_id FROM classes WHERE id=$1`, s.ClassID).Scan(&ayID); err == nil {
-			_, _ = r.q(ctx).Exec(ctx,
+			if _, err := r.q(ctx).Exec(ctx,
 				`INSERT INTO student_class_enrollments(school_id, student_id, class_id, academic_year_id, roll_number, status)
 				 VALUES($1, $2, $3, $4, $5, 'active')
 				 ON CONFLICT (student_id, academic_year_id) DO UPDATE SET class_id=EXCLUDED.class_id, roll_number=EXCLUDED.roll_number`,
-				created.SchoolID, created.ID, created.ClassID, ayID, created.RollNumber)
+				created.SchoolID, created.ID, created.ClassID, ayID, created.RollNumber); err != nil {
+				return fmt.Errorf("insert student enrollment: %w", err)
+			}
 		}
 		return nil
 	})
@@ -203,6 +208,9 @@ func (r *StudentRepo) GetAllByClassAndIDs(ctx context.Context, classID uuid.UUID
 			return nil, err
 		}
 		found[id] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("student rows error: %w", err)
 	}
 	return found, nil
 }
@@ -290,20 +298,28 @@ func extractNumberSuffix(s string) (prefix string, num int, pad int) {
 
 func scanStudent(row pgx.Row) (*models.Student, error) {
 	s := &models.Student{}
-	if err := row.Scan(&s.ID, &s.SchoolID, &s.ClassID, &s.AdmissionNumber, &s.RollNumber,
+	var classIDNull uuid.NullUUID
+	if err := row.Scan(&s.ID, &s.SchoolID, &classIDNull, &s.AdmissionNumber, &s.RollNumber,
 		&s.FullName, &s.Gender, &s.DOB, &s.GuardianName, &s.GuardianPhone,
 		&s.IsActive, &s.CreatedAt, &s.UpdatedAt); err != nil {
 		return nil, fmt.Errorf("scan student: %w", err)
+	}
+	if classIDNull.Valid {
+		s.ClassID = classIDNull.UUID
 	}
 	return s, nil
 }
 
 func scanStudentRow(rows pgx.Rows) (*models.Student, error) {
 	s := &models.Student{}
-	if err := rows.Scan(&s.ID, &s.SchoolID, &s.ClassID, &s.AdmissionNumber, &s.RollNumber,
+	var classIDNull uuid.NullUUID
+	if err := rows.Scan(&s.ID, &s.SchoolID, &classIDNull, &s.AdmissionNumber, &s.RollNumber,
 		&s.FullName, &s.Gender, &s.DOB, &s.GuardianName, &s.GuardianPhone,
 		&s.IsActive, &s.CreatedAt, &s.UpdatedAt); err != nil {
 		return nil, fmt.Errorf("scan student row: %w", err)
+	}
+	if classIDNull.Valid {
+		s.ClassID = classIDNull.UUID
 	}
 	return s, nil
 }
