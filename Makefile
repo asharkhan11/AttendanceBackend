@@ -1,7 +1,7 @@
 ## attendance-backend Makefile
 ## Loads configuration from .env
 
-.PHONY: run build migrate-up migrate-down seed test lint docker-build docker-run docker-stop help
+.PHONY: run build build-pwtool build-pwtool-linux migrate-up migrate-down seed test lint docker-build docker-run docker-stop help
 
 # Load .env if present
 ifneq (,$(wildcard .env))
@@ -23,6 +23,11 @@ build: ## Build static binaries to ./bin/
 	@mkdir -p bin
 	go build -o $(BINARY) ./cmd/api/
 	go build -o ./bin/attendance-migrate ./cmd/migrate/
+	go build -o ./bin/pwtool ./cmd/pwtool/
+
+build-pwtool-linux: ## Cross-compile pwtool for Linux/Ubuntu (amd64)
+	@mkdir -p bin
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ./bin/pwtool-linux ./cmd/pwtool/
 
 migrate-up: ## Apply all pending database migrations
 	@echo "Running migrations UP..."
