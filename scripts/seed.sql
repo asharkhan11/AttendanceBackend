@@ -30,6 +30,8 @@ INSERT INTO academic_years (id, school_id, name, start_date, end_date, is_curren
 -- Admin
 INSERT INTO users (id, school_id, role, full_name, email, password_hash, is_active) VALUES
   ('a0000000-0000-0000-0000-000000000020', 'a0000000-0000-0000-0000-000000000001', 'admin', 'School Admin', 'admin@demo-school.edu',
+   '$argon2id$v=19$m=65536,t=3,p=2$c29tZXNhbHRzb21lc2FsdA$GZOZnVsuIl859JTA3EJ6HQbji+o9QcsazcWmDssypW4', true),
+  (gen_random_uuid(), 'a0000000-0000-0000-0000-000000000001', 'admin', 'Demo Admin', 'admin@demo.edu',
    '$argon2id$v=19$m=65536,t=3,p=2$c29tZXNhbHRzb21lc2FsdA$GZOZnVsuIl859JTA3EJ6HQbji+o9QcsazcWmDssypW4', true);
 
 -- Teachers
@@ -47,11 +49,16 @@ INSERT INTO classes (id, school_id, academic_year_id, grade_level, section, clas
   ('a0000000-0000-0000-0000-000000000043', 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000010', 10, 'B', 'a0000000-0000-0000-0000-000000000024');
 
 -- Base Students
-INSERT INTO students (id, school_id, class_id, admission_number, roll_number, full_name, gender, guardian_name, guardian_phone, is_active) VALUES
-  (gen_random_uuid(), 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000040', 'ADM2026001', '01', 'Aarav Patel', 'M', 'Ramesh Patel', '+91-9810000001', true),
-  (gen_random_uuid(), 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000040', 'ADM2026002', '02', 'Diya Sharma', 'F', 'Suresh Sharma', '+91-9810000002', true),
-  (gen_random_uuid(), 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000040', 'ADM2026003', '03', 'Kiran Reddy', 'M', 'Vijay Reddy', '+91-9810000003', true),
-  (gen_random_uuid(), 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000040', 'ADM2026004', '04', 'Ananya Singh', 'F', 'Harish Singh', '+91-9810000004', true),
-  (gen_random_uuid(), 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000040', 'ADM2026005', '05', 'Rohan Joshi', 'M', 'Prakash Joshi', '+91-9810000005', true);
+INSERT INTO students (id, school_id, academic_year_id, class_id, admission_number, roll_number, full_name, gender, guardian_name, guardian_phone, is_active) VALUES
+  (gen_random_uuid(), 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000010', 'a0000000-0000-0000-0000-000000000040', 'ADM2026001', '01', 'Aarav Patel', 'M', 'Ramesh Patel', '+91-9810000001', true),
+  (gen_random_uuid(), 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000010', 'a0000000-0000-0000-0000-000000000040', 'ADM2026002', '02', 'Diya Sharma', 'F', 'Suresh Sharma', '+91-9810000002', true),
+  (gen_random_uuid(), 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000010', 'a0000000-0000-0000-0000-000000000040', 'ADM2026003', '03', 'Kiran Reddy', 'M', 'Vijay Reddy', '+91-9810000003', true),
+  (gen_random_uuid(), 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000010', 'a0000000-0000-0000-0000-000000000040', 'ADM2026004', '04', 'Ananya Singh', 'F', 'Harish Singh', '+91-9810000004', true),
+  (gen_random_uuid(), 'a0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000010', 'a0000000-0000-0000-0000-000000000040', 'ADM2026005', '05', 'Rohan Joshi', 'M', 'Prakash Joshi', '+91-9810000005', true);
+
+INSERT INTO student_class_enrollments (school_id, student_id, class_id, academic_year_id, roll_number, status)
+SELECT s.school_id, s.id, s.class_id, s.academic_year_id, s.roll_number, 'active'
+FROM students s WHERE s.academic_year_id IS NOT NULL
+ON CONFLICT (student_id, academic_year_id) DO NOTHING;
 
 -- Note: Use `go run ./cmd/seed` to populate the complete multi-class, multi-month attendance records dataset.

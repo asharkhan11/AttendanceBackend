@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -537,12 +538,15 @@ func (r *AnalyticsRepo) MonthlyMatrix(ctx context.Context, classID uuid.UUID, ye
 		return out, nil
 	}
 
+	startDateStr := fmt.Sprintf("%04d-%02d-01", year, month)
+	endDateStr := fmt.Sprintf("%04d-%02d-%02d", year, month, endDate.Day())
+
 	// 2. Fetch daily attendance records in month
 	recRows, err := r.q(ctx).Query(ctx, `
 		SELECT ar.student_id, TO_CHAR(s.session_date, 'YYYY-MM-DD'), ar.status
 		FROM attendance_records ar
 		JOIN attendance_sessions s ON s.id=ar.session_id
-		WHERE s.class_id=$1 AND s.session_date BETWEEN $2 AND $3`, classID, startDate, endDate)
+		WHERE s.class_id=$1 AND s.session_date >= $2::date AND s.session_date <= $3::date`, classID, startDateStr, endDateStr)
 	if err != nil {
 		return nil, err
 	}
@@ -554,7 +558,7 @@ func (r *AnalyticsRepo) MonthlyMatrix(ctx context.Context, classID uuid.UUID, ye
 		if err := recRows.Scan(&sid, &dateStr, &status); err == nil {
 			if st, ok := stMap[sid]; ok {
 				code := "P"
-				switch status {
+				switch strings.ToLower(strings.TrimSpace(status)) {
 				case "absent":
 					code = "A"
 					st.TotalAbsent++
@@ -565,6 +569,7 @@ func (r *AnalyticsRepo) MonthlyMatrix(ctx context.Context, classID uuid.UUID, ye
 					code = "E"
 					st.TotalExcused++
 				default:
+					code = "P"
 					st.TotalPresent++
 				}
 				st.DailyStatus[dateStr] = code

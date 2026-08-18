@@ -127,9 +127,10 @@ func main() {
 		log.Fatal().Err(err).Msg("failed to insert academic years")
 	}
 
-	// Insert Admin
+	// Insert Admin Users (both admin@demo-school.edu and admin@demo.edu)
 	_, err = pool.Exec(ctx, `INSERT INTO users (id, school_id, role, full_name, email, password_hash, is_active) VALUES
-		($1, $2, 'admin', 'School Admin', 'admin@demo-school.edu', $3, true)`, adminID, schoolID, passwordHash)
+		($1, $2, 'admin', 'School Admin', 'admin@demo-school.edu', $3, true),
+		(gen_random_uuid(), $2, 'admin', 'Demo Admin', 'admin@demo.edu', $3, true)`, adminID, schoolID, passwordHash)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to insert admin user")
 	}
@@ -286,12 +287,16 @@ func main() {
 			allStudents = append(allStudents, st)
 			admissionSeq++
 
-			_, err = pool.Exec(ctx, `INSERT INTO students (id, school_id, class_id, admission_number, roll_number, full_name, gender, dob, guardian_name, guardian_phone, is_active) VALUES
-				($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true)`,
-				st.ID, schoolID, st.ClassID, st.AdmissionNo, st.RollNo, st.FullName, st.Gender, st.DOB, st.GuardianName, st.GuardianPhone)
+			_, err = pool.Exec(ctx, `INSERT INTO students (id, school_id, academic_year_id, class_id, admission_number, roll_number, full_name, gender, dob, guardian_name, guardian_phone, is_active) VALUES
+				($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, true)`,
+				st.ID, schoolID, c.YearID, st.ClassID, st.AdmissionNo, st.RollNo, st.FullName, st.Gender, st.DOB, st.GuardianName, st.GuardianPhone)
 			if err != nil {
 				log.Fatal().Err(err).Msgf("failed to insert student %s", st.FullName)
 			}
+
+			_, _ = pool.Exec(ctx, `INSERT INTO student_class_enrollments (school_id, student_id, class_id, academic_year_id, roll_number, status)
+				VALUES ($1, $2, $3, $4, $5, 'active') ON CONFLICT DO NOTHING`,
+				schoolID, st.ID, st.ClassID, c.YearID, st.RollNo)
 		}
 	}
 	log.Info().Msgf("Inserted %d students across all 16 classes.", len(allStudents))

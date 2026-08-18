@@ -286,18 +286,42 @@ func (s *AcademicYearService) Create(ctx context.Context, req *dto.CreateAcademi
 	var ay *models.AcademicYear
 	err = s.yearRepo.Db().RunInTx(ctx, claims.SchoolID.String(), func(ctx context.Context) error {
 		var err error
-		ay, err = s.yearRepo.Create(ctx, claims.SchoolID, req.Name, start, end, req.IsCurrent)
-		if err != nil {
-			return err
-		}
-		if req.IsCurrent {
-			if err := s.yearRepo.SetCurrent(ctx, claims.SchoolID, ay.ID); err != nil {
-				return err
-			}
-			ay.IsCurrent = true
-		}
-		return nil
+		ay, err = s.yearRepo.Create(ctx, claims.SchoolID, req.Name, start, end, true)
+		return err
 	})
+	if err != nil {
+		if isDuplicateError(err) {
+			return nil, apperror.Conflict("academic year name already exists")
+		}
+		return nil, apperror.Internal(err)
+	}
+	return ay, nil
+}
+
+func (s *AcademicYearService) Update(ctx context.Context, id uuid.UUID, req *dto.UpdateAcademicYearRequest) (*models.AcademicYear, error) {
+	claims := auth.ClaimsFromContext(ctx)
+	if req.Name == "" {
+		return nil, apperror.Validation("name cannot be empty")
+	}
+
+	var start *time.Time
+	var end *time.Time
+	if req.StartDate != nil && *req.StartDate != "" {
+		sTime, err := time.Parse("2006-01-02", *req.StartDate)
+		if err != nil {
+			return nil, apperror.Validation("start_date must be YYYY-MM-DD")
+		}
+		start = &sTime
+	}
+	if req.EndDate != nil && *req.EndDate != "" {
+		eTime, err := time.Parse("2006-01-02", *req.EndDate)
+		if err != nil {
+			return nil, apperror.Validation("end_date must be YYYY-MM-DD")
+		}
+		end = &eTime
+	}
+
+	ay, err := s.yearRepo.Update(ctx, claims.SchoolID, id, req.Name, start, end)
 	if err != nil {
 		if isDuplicateError(err) {
 			return nil, apperror.Conflict("academic year name already exists")
@@ -309,17 +333,25 @@ func (s *AcademicYearService) Create(ctx context.Context, req *dto.CreateAcademi
 
 func (s *AcademicYearService) SetCurrent(ctx context.Context, id uuid.UUID) error {
 	claims := auth.ClaimsFromContext(ctx)
-	return s.yearRepo.Db().RunInTx(ctx, claims.SchoolID.String(), func(ctx context.Context) error {
+	err := s.yearRepo.Db().RunInTx(ctx, claims.SchoolID.String(), func(ctx context.Context) error {
 		return s.yearRepo.SetCurrent(ctx, claims.SchoolID, id)
 	})
+	if err != nil {
+		return apperror.Validation(err.Error())
+	}
+	return nil
 }
 
 func (s *AcademicYearService) SetArchived(ctx context.Context, id uuid.UUID, archived bool) error {
 	claims := auth.ClaimsFromContext(ctx)
-	return s.yearRepo.SetArchived(ctx, claims.SchoolID, id, archived)
+	if !archived {
+		return apperror.Validation("archived sessions cannot be unarchived (archival is permanent)")
+	}
+	return s.yearRepo.SetArchived(ctx, claims.SchoolID, id, true)
 }
 
 func (s *AcademicYearService) PromoteStudents(ctx context.Context, req *dto.PromoteStudentsRequest) (int64, error) {
+	claims := auth.ClaimsFromContext(ctx)
 	srcID, err := uuid.Parse(req.SourceClassID)
 	if err != nil {
 		return 0, apperror.Validation("invalid source_class_id")
@@ -328,6 +360,14 @@ func (s *AcademicYearService) PromoteStudents(ctx context.Context, req *dto.Prom
 	if err != nil {
 		return 0, apperror.Validation("invalid target_class_id")
 	}
+
+	// Verify target class is not in an archived session
+	var isArchived bool
+	if err := s.yearRepo.Db().Querier(ctx).QueryRow(ctx,
+		`SELECT ay.is_archived FROM classes c JOIN academic_years ay ON c.academic_year_id = ay.id WHERE c.id = $1`, tgtID).Scan(&isArchived); err == nil && isArchived {
+		return 0, apperror.Validation("cannot move students into an archived academic session")
+	}
+
 	var studentUUIDs []uuid.UUID
 	for _, sid := range req.StudentIDs {
 		uid, err := uuid.Parse(sid)
@@ -338,7 +378,16 @@ func (s *AcademicYearService) PromoteStudents(ctx context.Context, req *dto.Prom
 	if len(studentUUIDs) == 0 {
 		return 0, apperror.Validation("no valid student_ids provided")
 	}
-	return s.yearRepo.PromoteStudents(ctx, srcID, tgtID, studentUUIDs)
+	var promoted int64
+	err = s.yearRepo.Db().RunInTx(ctx, claims.SchoolID.String(), func(ctx context.Context) error {
+		var err error
+		promoted, err = s.yearRepo.PromoteStudents(ctx, srcID, tgtID, studentUUIDs)
+		return err
+	})
+	if err != nil {
+		return 0, apperror.Internal(err)
+	}
+	return promoted, nil
 }
 
 func (s *AcademicYearService) CopyClasses(ctx context.Context, req *dto.CopyClassesRequest) (int, error) {
@@ -351,7 +400,25 @@ func (s *AcademicYearService) CopyClasses(ctx context.Context, req *dto.CopyClas
 	if err != nil {
 		return 0, apperror.Validation("invalid target_academic_year_id")
 	}
-	return s.yearRepo.CopyClasses(ctx, claims.SchoolID, srcYearID, tgtYearID)
+	// Verify target is not archived
+	target, err := s.yearRepo.GetByID(ctx, claims.SchoolID, tgtYearID)
+	if err != nil {
+		return 0, apperror.NotFound("target academic year not found")
+	}
+	if target.IsArchived {
+		return 0, apperror.Validation("cannot copy into an archived academic session")
+	}
+
+	var count int
+	err = s.yearRepo.Db().RunInTx(ctx, claims.SchoolID.String(), func(ctx context.Context) error {
+		var err error
+		count, err = s.yearRepo.CopyClasses(ctx, claims.SchoolID, srcYearID, tgtYearID)
+		return err
+	})
+	if err != nil {
+		return 0, apperror.Internal(err)
+	}
+	return count, nil
 }
 
 func (s *AcademicYearService) CopyTeachers(ctx context.Context, req *dto.CopyTeachersRequest) (int, error) {
@@ -364,7 +431,106 @@ func (s *AcademicYearService) CopyTeachers(ctx context.Context, req *dto.CopyTea
 	if err != nil {
 		return 0, apperror.Validation("invalid target_academic_year_id")
 	}
-	return s.yearRepo.CopyTeachers(ctx, claims.SchoolID, srcYearID, tgtYearID, req.ClassMappings)
+	target, err := s.yearRepo.GetByID(ctx, claims.SchoolID, tgtYearID)
+	if err != nil {
+		return 0, apperror.NotFound("target academic year not found")
+	}
+	if target.IsArchived {
+		return 0, apperror.Validation("cannot copy into an archived academic session")
+	}
+
+	var count int
+	err = s.yearRepo.Db().RunInTx(ctx, claims.SchoolID.String(), func(ctx context.Context) error {
+		var err error
+		count, err = s.yearRepo.CopyTeachers(ctx, claims.SchoolID, srcYearID, tgtYearID, req.ClassMappings)
+		return err
+	})
+	if err != nil {
+		return 0, apperror.Internal(err)
+	}
+	return count, nil
+}
+
+func (s *AcademicYearService) CopyStudents(ctx context.Context, req *dto.CopyStudentsRequest) (int, error) {
+	claims := auth.ClaimsFromContext(ctx)
+	srcYearID, err := uuid.Parse(req.SourceAcademicYearID)
+	if err != nil {
+		return 0, apperror.Validation("invalid source_academic_year_id")
+	}
+	tgtYearID, err := uuid.Parse(req.TargetAcademicYearID)
+	if err != nil {
+		return 0, apperror.Validation("invalid target_academic_year_id")
+	}
+	target, err := s.yearRepo.GetByID(ctx, claims.SchoolID, tgtYearID)
+	if err != nil {
+		return 0, apperror.NotFound("target academic year not found")
+	}
+	if target.IsArchived {
+		return 0, apperror.Validation("cannot copy into an archived academic session")
+	}
+
+	var count int
+	err = s.yearRepo.Db().RunInTx(ctx, claims.SchoolID.String(), func(ctx context.Context) error {
+		var err error
+		count, err = s.yearRepo.CopyStudents(ctx, claims.SchoolID, srcYearID, tgtYearID)
+		return err
+	})
+	if err != nil {
+		return 0, apperror.Internal(err)
+	}
+	return count, nil
+}
+
+func (s *AcademicYearService) CopyAll(ctx context.Context, req *dto.CopyAllRequest) (*repository.CopyAllResult, error) {
+	claims := auth.ClaimsFromContext(ctx)
+	srcYearID, err := uuid.Parse(req.SourceAcademicYearID)
+	if err != nil {
+		return nil, apperror.Validation("invalid source_academic_year_id")
+	}
+	tgtYearID, err := uuid.Parse(req.TargetAcademicYearID)
+	if err != nil {
+		return nil, apperror.Validation("invalid target_academic_year_id")
+	}
+	target, err := s.yearRepo.GetByID(ctx, claims.SchoolID, tgtYearID)
+	if err != nil {
+		return nil, apperror.NotFound("target academic year not found")
+	}
+	if target.IsArchived {
+		return nil, apperror.Validation("cannot copy into an archived academic session")
+	}
+
+	var res *repository.CopyAllResult
+	err = s.yearRepo.Db().RunInTx(ctx, claims.SchoolID.String(), func(ctx context.Context) error {
+		var err error
+		res, err = s.yearRepo.CopyAll(ctx, claims.SchoolID, srcYearID, tgtYearID)
+		return err
+	})
+	if err != nil {
+		return nil, apperror.Internal(err)
+	}
+	return res, nil
+}
+
+func (s *AcademicYearService) MoveAllStudentsHigher(ctx context.Context, yearID uuid.UUID) (*repository.MoveHigherResult, error) {
+	claims := auth.ClaimsFromContext(ctx)
+	target, err := s.yearRepo.GetByID(ctx, claims.SchoolID, yearID)
+	if err != nil {
+		return nil, apperror.NotFound("academic year not found")
+	}
+	if target.IsArchived {
+		return nil, apperror.Validation("cannot move students in an archived academic session")
+	}
+
+	var res *repository.MoveHigherResult
+	err = s.yearRepo.Db().RunInTx(ctx, claims.SchoolID.String(), func(ctx context.Context) error {
+		var err error
+		res, err = s.yearRepo.MoveAllStudentsHigher(ctx, claims.SchoolID, yearID)
+		return err
+	})
+	if err != nil {
+		return nil, apperror.Internal(err)
+	}
+	return res, nil
 }
 
 func (s *StudentService) List(ctx context.Context, academicYearID *uuid.UUID, classID *uuid.UUID, search string, pg httpx.Pagination) ([]*models.Student, int64, error) {

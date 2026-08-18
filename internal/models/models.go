@@ -80,6 +80,7 @@ type Class struct {
 type Student struct {
 	ID              uuid.UUID  `json:"id"`
 	SchoolID        uuid.UUID  `json:"school_id"`
+	AcademicYearID  uuid.UUID  `json:"academic_year_id"`
 	ClassID         uuid.UUID  `json:"class_id"`
 	AdmissionNumber string     `json:"admission_number"`
 	RollNumber      string     `json:"roll_number"`

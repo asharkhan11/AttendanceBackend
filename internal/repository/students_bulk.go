@@ -28,6 +28,7 @@ func (r *StudentBulkRepository) BulkCreate(ctx context.Context, students []*mode
 
 	ids := make([]uuid.UUID, len(students))
 	schoolIDs := make([]uuid.UUID, len(students))
+	yearIDs := make([]uuid.UUID, len(students))
 	classIDs := make([]uuid.UUID, len(students))
 	admissionNums := make([]string, len(students))
 	rollNums := make([]string, len(students))
@@ -43,6 +44,7 @@ func (r *StudentBulkRepository) BulkCreate(ctx context.Context, students []*mode
 		}
 		ids[i] = s.ID
 		schoolIDs[i] = s.SchoolID
+		yearIDs[i] = s.AcademicYearID
 		classIDs[i] = s.ClassID
 		admissionNums[i] = s.AdmissionNumber
 		rollNums[i] = s.RollNumber
@@ -54,21 +56,35 @@ func (r *StudentBulkRepository) BulkCreate(ctx context.Context, students []*mode
 	}
 
 	query := `
-		INSERT INTO students (id, school_id, class_id, admission_number, roll_number, full_name, gender, dob, guardian_name, guardian_phone)
-		SELECT * FROM UNNEST(
+		INSERT INTO students (id, school_id, academic_year_id, class_id, admission_number, roll_number, full_name, gender, dob, guardian_name, guardian_phone)
+		SELECT 
+			u.id, 
+			u.school_id, 
+			COALESCE(NULLIF(u.academic_year_id, '00000000-0000-0000-0000-000000000000'::uuid), c.academic_year_id), 
+			u.class_id, 
+			u.admission_number, 
+			u.roll_number, 
+			u.full_name, 
+			u.gender, 
+			u.dob, 
+			u.guardian_name, 
+			u.guardian_phone
+		FROM UNNEST(
 			$1::uuid[],
 			$2::uuid[],
 			$3::uuid[],
-			$4::text[],
+			$4::uuid[],
 			$5::text[],
 			$6::text[],
 			$7::text[],
-			$8::date[],
-			$9::text[],
-			$10::text[]
-		)
+			$8::text[],
+			$9::date[],
+			$10::text[],
+			$11::text[]
+		) AS u(id, school_id, academic_year_id, class_id, admission_number, roll_number, full_name, gender, dob, guardian_name, guardian_phone)
+		JOIN classes c ON u.class_id = c.id
 	`
-	_, err := tx.Exec(ctx, query, ids, schoolIDs, classIDs, admissionNums, rollNums, fullNames, genders, dobs, guardianNames, guardianPhones)
+	_, err := tx.Exec(ctx, query, ids, schoolIDs, yearIDs, classIDs, admissionNums, rollNums, fullNames, genders, dobs, guardianNames, guardianPhones)
 	if err != nil {
 		return fmt.Errorf("bulk create students: %w", err)
 	}
@@ -77,9 +93,8 @@ func (r *StudentBulkRepository) BulkCreate(ctx context.Context, students []*mode
 
 	_, err = tx.Exec(ctx, `
 		INSERT INTO student_class_enrollments (school_id, student_id, class_id, academic_year_id, roll_number, status)
-		SELECT s.school_id, s.id, s.class_id, c.academic_year_id, s.roll_number, 'active'
+		SELECT s.school_id, s.id, s.class_id, s.academic_year_id, s.roll_number, 'active'
 		FROM students s
-		JOIN classes c ON s.class_id = c.id
 		WHERE s.id = ANY($1)
 		ON CONFLICT (student_id, academic_year_id) DO UPDATE SET class_id = EXCLUDED.class_id, roll_number = EXCLUDED.roll_number`,
 		studentIDs)

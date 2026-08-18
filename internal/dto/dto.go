@@ -83,6 +83,12 @@ type CreateAcademicYearRequest struct {
 	IsCurrent bool   `json:"is_current"`
 }
 
+type UpdateAcademicYearRequest struct {
+	Name      string  `json:"name"       validate:"required,max=50"`
+	StartDate *string `json:"start_date,omitempty"`
+	EndDate   *string `json:"end_date,omitempty"`
+}
+
 type PromoteStudentsRequest struct {
 	SourceClassID string   `json:"source_class_id" validate:"required,uuid"`
 	TargetClassID string   `json:"target_class_id" validate:"required,uuid"`
@@ -98,6 +104,16 @@ type CopyTeachersRequest struct {
 	SourceAcademicYearID string            `json:"source_academic_year_id" validate:"required,uuid"`
 	TargetAcademicYearID string            `json:"target_academic_year_id" validate:"required,uuid"`
 	ClassMappings        map[string]string `json:"class_mappings,omitempty"` // map source class_id -> target class_id
+}
+
+type CopyStudentsRequest struct {
+	SourceAcademicYearID string `json:"source_academic_year_id" validate:"required,uuid"`
+	TargetAcademicYearID string `json:"target_academic_year_id" validate:"required,uuid"`
+}
+
+type CopyAllRequest struct {
+	SourceAcademicYearID string `json:"source_academic_year_id" validate:"required,uuid"`
+	TargetAcademicYearID string `json:"target_academic_year_id" validate:"required,uuid"`
 }
 
 // ─── Classes ──────────────────────────────────────────────────────────────────

@@ -1,0 +1,62 @@
+services:
+  # ── PostgreSQL Database Container ──────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: attendance-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-attendance}
+      POSTGRES_USER: ${POSTGRES_USER:-attendance_owner}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-AttendanceOwner2026}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../scripts/init_db.sql:/docker-entrypoint-initdb.d/00_init_db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-attendance_owner} -d $${POSTGRES_DB:-attendance}"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # ── Go Attendance REST API Server ──────────────────────────────────────────
+  api:
+    container_name: attendance-api
+    image: attendance-api:local
+    build:
+      context: ..
+      dockerfile: deployments/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ../.env
+    environment:
+      # Internal container networking to local postgres container
+      DATABASE_URL: postgres://${POSTGRES_USER:-attendance_owner}:${POSTGRES_PASSWORD:-AttendanceOwner2026}@postgres:5432/${POSTGRES_DB:-attendance}?sslmode=disable
+      MIGRATE_DATABASE_URL: postgres://${POSTGRES_USER:-attendance_owner}:${POSTGRES_PASSWORD:-AttendanceOwner2026}@postgres:5432/${POSTGRES_DB:-attendance}?sslmode=disable
+      PORT: 8080
+      ENV: local
+    ports:
+      - "0.0.0.0:8080:8080"
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      start_period: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+volumes:
+  pgdata:

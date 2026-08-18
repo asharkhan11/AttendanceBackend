@@ -23,7 +23,7 @@ func NewAnalyticsService(ar *repository.AnalyticsRepo, sr *repository.StudentRep
 	return &AnalyticsService{ar, sr}
 }
 
-func (s *AnalyticsService) checkClassAccess(ctx context.Context, classID uuid.UUID) error {
+func (s *AnalyticsService) checkClassAccess(_ context.Context, _ uuid.UUID) error {
 	// Authenticated users (admin or teacher) within the school (via RLS) can view class summary
 	return nil
 }

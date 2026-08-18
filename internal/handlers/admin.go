@@ -544,6 +544,40 @@ func (h *AcademicYearHandler) Create(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteCreated(w, ay)
 }
 
+// Update godoc
+// @Summary Update academic year name and dates
+// @Description Updates the name and optional dates for an academic year (active or archived).
+// @Tags Academic Years
+// @Accept json
+// @Produce json
+// @Security Bearer
+// @Param id path string true "Academic Year ID (UUID)"
+// @Param request body dto.UpdateAcademicYearRequest true "Academic year update payload"
+// @Success 200 {object} httpx.Envelope{data=models.AcademicYear}
+// @Failure 400 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Failure 401 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Failure 403 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Failure 409 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Router /api/v1/academic-years/{id} [put]
+func (h *AcademicYearHandler) Update(w http.ResponseWriter, r *http.Request) {
+	id, err := parseUUID(r, "id")
+	if err != nil {
+		httpx.WriteError(w, err)
+		return
+	}
+	var req dto.UpdateAcademicYearRequest
+	if err := dto.Decode(r, &req); err != nil {
+		httpx.WriteError(w, err)
+		return
+	}
+	ay, err := h.svc.Update(r.Context(), id, &req)
+	if err != nil {
+		httpx.WriteError(w, err)
+		return
+	}
+	httpx.WriteOK(w, ay)
+}
+
 // SetCurrent godoc
 // @Summary Set current active academic year
 // @Description Activates a specific academic year session as the current active session.
@@ -701,6 +735,87 @@ func (h *AcademicYearHandler) CopyTeachers(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	httpx.WriteOK(w, map[string]any{"copied": count})
+}
+
+// CopyStudents godoc
+// @Summary Copy students to target year
+// @Description Clones students from a source academic year to matching classes in a target academic year.
+// @Tags Academic Years
+// @Accept json
+// @Produce json
+// @Security Bearer
+// @Param request body dto.CopyStudentsRequest true "Copy students request"
+// @Success 200 {object} httpx.Envelope{data=map[string]int} "copied count"
+// @Failure 400 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Failure 401 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Failure 403 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Router /api/v1/academic-years/copy-students [post]
+func (h *AcademicYearHandler) CopyStudents(w http.ResponseWriter, r *http.Request) {
+	var req dto.CopyStudentsRequest
+	if err := dto.Decode(r, &req); err != nil {
+		httpx.WriteError(w, err)
+		return
+	}
+	count, err := h.svc.CopyStudents(r.Context(), &req)
+	if err != nil {
+		httpx.WriteError(w, err)
+		return
+	}
+	httpx.WriteOK(w, map[string]any{"copied": count})
+}
+
+// CopyAll godoc
+// @Summary Copy all classes, teachers, and students to target year
+// @Description Clones entire structure (classes, teacher assignments, and students) from source to target academic year.
+// @Tags Academic Years
+// @Accept json
+// @Produce json
+// @Security Bearer
+// @Param request body dto.CopyAllRequest true "Copy all request"
+// @Success 200 {object} httpx.Envelope{data=repository.CopyAllResult} "copy results"
+// @Failure 400 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Failure 401 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Failure 403 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Router /api/v1/academic-years/copy-all [post]
+func (h *AcademicYearHandler) CopyAll(w http.ResponseWriter, r *http.Request) {
+	var req dto.CopyAllRequest
+	if err := dto.Decode(r, &req); err != nil {
+		httpx.WriteError(w, err)
+		return
+	}
+	res, err := h.svc.CopyAll(r.Context(), &req)
+	if err != nil {
+		httpx.WriteError(w, err)
+		return
+	}
+	httpx.WriteOK(w, res)
+}
+
+// MoveAllStudentsHigher godoc
+// @Summary Move all students up by 1 grade level and graduate top grade
+// @Description Promotes all students in the active session up by 1 grade level, and removes top-grade students.
+// @Tags Academic Years
+// @Accept json
+// @Produce json
+// @Security Bearer
+// @Param id path string true "Academic Year ID (UUID)"
+// @Success 200 {object} httpx.Envelope{data=repository.MoveHigherResult} "move results"
+// @Failure 400 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Failure 401 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Failure 403 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Router /api/v1/academic-years/{id}/move-all-higher [post]
+func (h *AcademicYearHandler) MoveAllStudentsHigher(w http.ResponseWriter, r *http.Request) {
+	id, err := parseUUID(r, "id")
+	if err != nil {
+		httpx.WriteError(w, err)
+		return
+	}
+	res, err := h.svc.MoveAllStudentsHigher(r.Context(), id)
+	if err != nil {
+		httpx.WriteError(w, err)
+		return
+	}
+	httpx.WriteOK(w, res)
 }
 
 // NextStudentInfo godoc

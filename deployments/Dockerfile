@@ -39,8 +39,8 @@ FROM alpine:3.19 AS runtime
 
 WORKDIR /app
 
-# Install SSL certificates, timezone data, and curl for health check
-RUN apk add --no-cache ca-certificates tzdata curl && \
+# Install SSL certificates, timezone data, curl, and postgresql-client
+RUN apk add --no-cache ca-certificates tzdata curl postgresql-client && \
     addgroup -g 10001 -S appgroup && \
     adduser -u 10001 -S appuser -G appgroup
 
