@@ -1,27 +1,24 @@
 #!/usr/bin/env bash
-# manage-whatsapp.sh — enable/disable WhatsApp messaging and set monthly rate limits per school.
+# manage-whatsapp.sh — enable/disable WhatsApp messaging and set monthly limits per school.
+# Supports both interactive prompts and CLI flags.
 #
-# Usage:
+# Interactive Usage:
+#   ./manage-whatsapp.sh
+#
+# CLI Usage:
 #   ./manage-whatsapp.sh <school_code> [--enable] [--disable] [--limit <number>] [--status]
-#
-# Examples:
-#   ./manage-whatsapp.sh demo-school --enable
-#   ./manage-whatsapp.sh demo-school --disable
-#   ./manage-whatsapp.sh demo-school --limit 1500
-#   ./manage-whatsapp.sh demo-school --enable --limit 2000
-#   ./manage-whatsapp.sh demo-school --status
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
+echo "============================================================"
+echo "  Manage School WhatsApp Configuration"
+echo "============================================================"
+
 SCHOOL_CODE="${1:-}"
-shift || true
-
-require_arg "school_code" "$SCHOOL_CODE"
-
-SCHOOL_ID=$(psql_scalar "SELECT id FROM schools WHERE code='${SCHOOL_CODE}'")
-if [[ -z "$SCHOOL_ID" ]]; then
-  echo "ERROR: no school found with code '$SCHOOL_CODE'." >&2
-  exit 1
+if [[ -n "$SCHOOL_CODE" && "$SCHOOL_CODE" != --* ]]; then
+  shift || true
+else
+  SCHOOL_CODE=""
 fi
 
 ACTION_ENABLE=false
@@ -49,11 +46,69 @@ while [[ $# -gt 0 ]]; do
       ;;
     *)
       echo "ERROR: Unknown option '$1'" >&2
-      echo "Usage: ./manage-whatsapp.sh <school_code> [--enable] [--disable] [--limit <number>] [--status]" >&2
       exit 1
       ;;
   esac
 done
+
+if [[ -z "$SCHOOL_CODE" ]]; then
+  echo
+  prompt_required SCHOOL_CODE "Enter School Code"
+fi
+
+SCHOOL_ID=$(psql_scalar "SELECT id FROM schools WHERE code='${SCHOOL_CODE}'")
+if [[ -z "$SCHOOL_ID" ]]; then
+  echo "ERROR: No school found with code '$SCHOOL_CODE'." >&2
+  exit 1
+fi
+
+# If no action flags were passed, offer an interactive menu
+if [[ "$ACTION_ENABLE" == false && "$ACTION_DISABLE" == false && -z "$NEW_LIMIT" && "$SHOW_STATUS" == false ]]; then
+  echo
+  echo "Current WhatsApp Settings for '$SCHOOL_CODE':"
+  psql_exec "
+    SELECT 
+      name, 
+      code, 
+      is_whatsapp_enabled AS enabled, 
+      whatsapp_monthly_limit AS monthly_limit,
+      (SELECT COUNT(*) FROM whatsapp_logs 
+       WHERE school_id = '${SCHOOL_ID}' 
+         AND status = 'sent' 
+         AND created_at >= date_trunc('month', now()) 
+         AND created_at < date_trunc('month', now()) + interval '1 month') AS current_month_sent
+    FROM schools 
+    WHERE id = '${SCHOOL_ID}'
+  "
+  echo
+  echo "Select an action:"
+  echo "  1) Enable WhatsApp messaging"
+  echo "  2) Disable WhatsApp messaging"
+  echo "  3) Update monthly message limit"
+  echo "  4) Enable WhatsApp AND set monthly message limit"
+  echo "  5) Done / Exit"
+  read -r -p "Enter choice [1-5]: " CHOICE
+
+  case "$CHOICE" in
+    1)
+      ACTION_ENABLE=true
+      ;;
+    2)
+      ACTION_DISABLE=true
+      ;;
+    3)
+      prompt_required NEW_LIMIT "Enter new monthly message limit (e.g., 2000)"
+      ;;
+    4)
+      ACTION_ENABLE=true
+      prompt_required NEW_LIMIT "Enter new monthly message limit (e.g., 2000)"
+      ;;
+    5|*)
+      echo "Exiting."
+      exit 0
+      ;;
+  esac
+fi
 
 if [[ "$ACTION_ENABLE" == true && "$ACTION_DISABLE" == true ]]; then
   echo "ERROR: Cannot specify both --enable and --disable." >&2
@@ -80,11 +135,14 @@ if [[ ${#SET_CLAUSES[@]} -gt 0 ]]; then
   SET_CLAUSES+=("updated_at = now()")
   IFS="," SET_SQL="${SET_CLAUSES[*]}"
   psql_exec "UPDATE schools SET ${SET_SQL} WHERE id='${SCHOOL_ID}'" > /dev/null
+  echo
   echo "✓ WhatsApp settings updated for school '$SCHOOL_CODE'."
 fi
 
-# Query current status
-INFO=$(psql_exec "
+# Display updated status
+echo
+echo "=== Updated WhatsApp Status ==="
+psql_exec "
   SELECT 
     name, 
     code, 
@@ -97,8 +155,5 @@ INFO=$(psql_exec "
        AND created_at < date_trunc('month', now()) + interval '1 month') AS current_month_sent
   FROM schools 
   WHERE id = '${SCHOOL_ID}'
-")
-
-echo ""
-echo "=== School WhatsApp Configuration ==="
-echo "$INFO"
+"
+echo

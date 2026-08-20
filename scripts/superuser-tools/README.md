@@ -1,65 +1,88 @@
-# Admin Tools — Operator Scripts
+# Superuser Tools — Platform Operator Scripts
 
-Bash scripts for platform superusers to manage tenant environments (schools) and their admin accounts directly against PostgreSQL. These are **operator tools**, not part of the public REST API.
+Interactive bash scripts for platform superusers (system owners) to manage tenant environments (schools) and their admin accounts directly against PostgreSQL from your local terminal.
 
-All scripts connect using `MIGRATE_DATABASE_URL` (falls back to `DATABASE_URL`) from your `.env` file — this should be the **owner/superuser** role (`attendance_owner`).
+These are **platform owner tools**, distinct from school admins and teachers.
 
-## Setup
+All scripts automatically connect to your production PostgreSQL container on the database server (`155.248.241.83`) over SSH using your OCI SSH key (`ssh-key-2026-06-29.key`) and hash passwords locally via `bin/pwtool.exe` without installing Go or psql on the database server.
 
+---
+
+## Interactive Prompts
+
+All scripts prompt for their required parameters **step-by-step**:
 ```bash
-cd scripts/admin-tools
-chmod +x *.sh          # if not already executable
+cd scripts/superuser-tools
+./create-school.sh
 ```
 
-The first time you run a password-related script, it will automatically build `bin/pwtool` (a small Go binary that hashes passwords using the exact same argon2id parameters as the running API, so every hash it produces works with `POST /auth/login`).
+You can also pass arguments directly on the command line if preferred.
 
-## Scripts
+---
+
+## Available Scripts
 
 | Script | Purpose |
 |---|---|
-| `create-school.sh` | Provision a brand-new tenant school environment AND its initial admin user |
-| `update-school.sh` | Update school information (name, school_code, active status) |
-| `update-admin.sh` | Update admin account details (full_name, email, password, phone) |
-| `manage-whatsapp.sh` | Enable/disable WhatsApp messaging per school and set monthly rate limits |
-| `list-schools.sh` | Overview of all schools, or detail view of one |
-| `gen-jwt-secret.sh` | Generate a random `JWT_SECRET` for `.env` |
-| `backup-db.sh` | Dump the full database to a timestamped `.sql.gz` |
-| `restore-db.sh` | Restore from a backup (destructive, asks for confirmation) |
+| `./create-school.sh` | Provision a brand-new tenant school environment AND its initial admin user |
+| `./list-schools.sh` | Overview of all schools, with interactive detail view for any school |
+| `./update-school.sh` | Update school information (name, school code, active/inactive status) |
+| `./update-admin.sh` | Update admin account details (full name, email, password, phone) |
+| `./manage-whatsapp.sh` | Enable/disable WhatsApp messaging per school and set monthly rate limits |
+| `./gen-jwt-secret.sh` | Generate a cryptographically secure random `JWT_SECRET` for `.env` |
+| `./backup-db.sh` | Dump the remote database directly to a local timestamped `.sql.gz` archive |
+| `./restore-db.sh` | Restore from a backup archive (destructive, asks for confirmation) |
 
-> **Note**: Superusers do not manage teachers directly via scripts; teacher account creation, class assignment, and student management are handled by the school's admin via the REST API endpoints.
+> **Note**: Superusers manage schools and their admins. Teacher accounts, class assignment, and student records are managed by each school's admin via the REST API or admin web portal.
 
-## Examples
+---
 
+## Interactive Usage Examples
+
+### 1. Provision a New School & Admin
 ```bash
-# Provision a new tenant environment (school + admin user)
-./create-school.sh oakridge-hs "Oakridge High School" admin@oakridge.edu "Oakridge Admin" "AdminPass123!" "+1-555-0199"
-
-# Update school details (name, code, active status)
-./update-school.sh oakridge-hs --name "Oakridge International School" --status inactive
-
-# Enable WhatsApp messaging and set monthly limit to 1500 messages
-./manage-whatsapp.sh oakridge-hs --enable --limit 1500
-
-# Disable WhatsApp messaging for a school
-./manage-whatsapp.sh oakridge-hs --disable
-
-# Check WhatsApp configuration and monthly usage for a school
-./manage-whatsapp.sh oakridge-hs --status
-
-# Update admin details (name, email, password, phone)
-./update-admin.sh oakridge-hs admin@oakridge.edu --name "Principal Reyes" --password "NewSecurePass123!"
-
-# List all tenant schools
-./list-schools.sh
-
-# Detail view of a specific school
-./list-schools.sh oakridge-hs
-
-# Nightly backup
-./backup-db.sh /var/backups/attendance
+./create-school.sh
 ```
+Prompts step-by-step:
+1. `Enter School Name`: e.g. `Oakridge High School`
+2. `Enter School Code`: e.g. `oakridge-hs`
+3. `Enter Admin Full Name`: e.g. `Sarah Connor`
+4. `Enter Admin Email Address`: e.g. `admin@oakridge.edu`
+5. `Enter Admin Password`: (press Enter to auto-generate a secure random password)
+6. `Enter Admin Phone Number`: (optional, e.g. `+1-555-0199`)
 
-## Notes
+### 2. View All Tenant Schools & Inspect Details
+```bash
+./list-schools.sh
+```
+Shows the tenant summary table and asks:
+`Enter school code to view details (or press Enter to finish):`
 
-- **All scripts enforce PostgreSQL Tenant RLS**: Tenant-specific actions automatically set `app.current_school_id` so that operations execute safely within the tenant context.
-- **Passwords are shown once**: If an optional password parameter is omitted during `create-school.sh`, a strong random password is generated and printed.
+### 3. Update School Details
+```bash
+./update-school.sh
+```
+Prompts for school code, shows current values, and asks for new name, code, or status (`active`/`inactive`).
+
+### 4. Update Admin Account
+```bash
+./update-admin.sh
+```
+Prompts for school code and admin email, then asks which fields to update (name, email, password, phone). If the password is changed, it is hashed locally and active sessions are revoked.
+
+### 5. Manage WhatsApp Messaging & Limits
+```bash
+./manage-whatsapp.sh
+```
+Shows current usage and offers an interactive menu:
+1. Enable WhatsApp messaging
+2. Disable WhatsApp messaging
+3. Update monthly message limit
+4. Enable WhatsApp AND set monthly limit
+5. Done / Exit
+
+### 6. Local Database Backup
+```bash
+./backup-db.sh
+```
+Prompts for output directory (default `./backups`) and streams compressed database dump to local disk.

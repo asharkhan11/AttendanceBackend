@@ -495,6 +495,19 @@ func (r *ClassRepo) AssignTeacher(ctx context.Context, schoolID, classID uuid.UU
 	return r.GetByID(ctx, classID)
 }
 
+func (r *ClassRepo) Update(ctx context.Context, schoolID, id uuid.UUID, gradeLevel int16, section string) (*ClassWithTeacher, error) {
+	cmd, err := r.q(ctx).Exec(ctx,
+		`UPDATE classes SET grade_level = $1, section = $2 WHERE id = $3 AND school_id = $4`,
+		gradeLevel, section, id, schoolID)
+	if err != nil {
+		return nil, fmt.Errorf("update class: %w", err)
+	}
+	if cmd.RowsAffected() == 0 {
+		return nil, fmt.Errorf("class not found")
+	}
+	return r.GetByID(ctx, id)
+}
+
 func (r *ClassRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	cmd, err := r.q(ctx).Exec(ctx, `DELETE FROM classes WHERE id = $1`, id)
 	if err != nil {

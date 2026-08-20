@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -95,6 +96,7 @@ var DefaultArgon2Params = Argon2Params{
 
 type PasswordService struct {
 	params Argon2Params
+	sem    chan struct{}
 }
 
 func NewPasswordService(memKB, iterations uint32, parallelism uint8) *PasswordService {
@@ -102,11 +104,21 @@ func NewPasswordService(memKB, iterations uint32, parallelism uint8) *PasswordSe
 	p.MemoryKB = memKB
 	p.Iterations = iterations
 	p.Parallelism = parallelism
-	return &PasswordService{params: p}
+	maxWorkers := runtime.NumCPU() * 4
+	if maxWorkers < 8 {
+		maxWorkers = 8
+	}
+	return &PasswordService{
+		params: p,
+		sem:    make(chan struct{}, maxWorkers),
+	}
 }
 
 // HashPassword produces $argon2id$v=19$m=...,t=...,p=...$<b64salt>$<b64hash>
 func (s *PasswordService) HashPassword(password string) (string, error) {
+	s.sem <- struct{}{}
+	defer func() { <-s.sem }()
+
 	salt := make([]byte, s.params.SaltLen)
 	if _, err := rand.Read(salt); err != nil {
 		return "", fmt.Errorf("generating salt: %w", err)
@@ -120,6 +132,9 @@ func (s *PasswordService) HashPassword(password string) (string, error) {
 
 // VerifyPassword returns true if password matches the stored hash string.
 func (s *PasswordService) VerifyPassword(password, encodedHash string) (bool, error) {
+	s.sem <- struct{}{}
+	defer func() { <-s.sem }()
+
 	var version int
 	var mem, iters uint32
 	var para uint8

@@ -64,11 +64,12 @@ func main() {
 	// ── HTTP Server ────────────────────────────────────────────────────────────
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	srv := &http.Server{
-		Addr:         addr,
-		Handler:      router,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Addr:              addr,
+		Handler:           router,
+		ReadHeaderTimeout: 3 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	// ── Graceful shutdown ──────────────────────────────────────────────────────

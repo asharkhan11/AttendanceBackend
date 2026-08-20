@@ -20,6 +20,11 @@ import (
 
 // ─── Class Service ────────────────────────────────────────────────────────────
 
+type cachedClassList struct {
+	classes []*repository.ClassWithTeacher
+	total   int64
+}
+
 type ClassService struct {
 	classRepo *repository.ClassRepo
 	yearRepo  *repository.AcademicYearRepo
@@ -31,7 +36,23 @@ func NewClassService(cr *repository.ClassRepo, yr *repository.AcademicYearRepo) 
 
 func (s *ClassService) List(ctx context.Context, academicYearID *uuid.UUID, pg httpx.Pagination) ([]*repository.ClassWithTeacher, int64, error) {
 	claims := auth.ClaimsFromContext(ctx)
-	return s.classRepo.List(ctx, claims.SchoolID, academicYearID, pg.PageSize, pg.Offset)
+	yearKey := "all"
+	if academicYearID != nil {
+		yearKey = academicYearID.String()
+	}
+	cacheKey := fmt.Sprintf("%s:classes:%s:%d:%d", claims.SchoolID, yearKey, pg.PageSize, pg.Offset)
+	if val, ok := GlobalTenantCache.Get(cacheKey); ok {
+		if cached, ok := val.(cachedClassList); ok {
+			return cached.classes, cached.total, nil
+		}
+	}
+
+	classes, total, err := s.classRepo.List(ctx, claims.SchoolID, academicYearID, pg.PageSize, pg.Offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	GlobalTenantCache.Set(cacheKey, cachedClassList{classes: classes, total: total}, 45*time.Second)
+	return classes, total, nil
 }
 
 func (s *ClassService) GetMyClass(ctx context.Context) (*repository.ClassWithTeacher, error) {
@@ -75,6 +96,7 @@ func (s *ClassService) Create(ctx context.Context, req *dto.CreateClassRequest) 
 		}
 		return nil, apperror.Internal(err)
 	}
+	GlobalTenantCache.InvalidateSchool(claims.SchoolID)
 	return cls, nil
 }
 
@@ -87,11 +109,33 @@ func (s *ClassService) AssignTeacher(ctx context.Context, classID uuid.UUID, tea
 		}
 		return nil, apperror.Internal(err)
 	}
+	GlobalTenantCache.InvalidateSchool(claims.SchoolID)
+	return cls, nil
+}
+
+func (s *ClassService) Update(ctx context.Context, id uuid.UUID, req *dto.UpdateClassRequest) (*repository.ClassWithTeacher, error) {
+	claims := auth.ClaimsFromContext(ctx)
+	cls, err := s.classRepo.Update(ctx, claims.SchoolID, id, req.GradeLevel, req.Section)
+	if err != nil {
+		if isDuplicateError(err) {
+			return nil, apperror.Conflict("a class with this grade level and section already exists")
+		}
+		if isNotFound(err) {
+			return nil, apperror.NotFound("class")
+		}
+		return nil, apperror.Internal(err)
+	}
+	GlobalTenantCache.InvalidateSchool(claims.SchoolID)
 	return cls, nil
 }
 
 func (s *ClassService) Delete(ctx context.Context, id uuid.UUID) error {
-	return s.classRepo.Delete(ctx, id)
+	claims := auth.ClaimsFromContext(ctx)
+	err := s.classRepo.Delete(ctx, id)
+	if err == nil && claims != nil {
+		GlobalTenantCache.InvalidateSchool(claims.SchoolID)
+	}
+	return err
 }
 
 // ─── Teacher Service ──────────────────────────────────────────────────────────
@@ -167,7 +211,15 @@ func (s *TeacherService) ResetPassword(ctx context.Context, id uuid.UUID, req *d
 	return nil
 }
 
-// BulkImportCSV reads a CSV reader and imports teacher accounts. Returns count and any row errors.
+type parsedTeacherRow struct {
+	lineNo   int
+	fullName string
+	email    string
+	phoneStr string
+	password string
+}
+
+// BulkImportCSV reads a CSV reader and imports teacher accounts with concurrent hashing & masked password safety.
 func (s *TeacherService) BulkImportCSV(ctx context.Context, r io.Reader) (int, []string, error) {
 	claims := auth.ClaimsFromContext(ctx)
 	reader := csv.NewReader(r)
@@ -186,8 +238,8 @@ func (s *TeacherService) BulkImportCSV(ctx context.Context, r io.Reader) (int, [
 		headerMap[cleaned] = idx
 	}
 
+	var parsedRows []parsedTeacherRow
 	var errs []string
-	importedCount := 0
 
 	for i, row := range records[1:] {
 		lineNo := i + 2
@@ -218,29 +270,60 @@ func (s *TeacherService) BulkImportCSV(ctx context.Context, r io.Reader) (int, [
 			errs = append(errs, fmt.Sprintf("line %d: email is required", lineNo))
 			continue
 		}
-		if password == "" {
-			errs = append(errs, fmt.Sprintf("line %d: password is required", lineNo))
-			continue
+		// If password is empty or masked (e.g. from export), assign default password
+		if password == "" || password == "********" || password == "******" {
+			password = "Teacher@1234"
 		}
 
-		hash, err := s.passSvc.HashPassword(password)
-		if err != nil {
-			errs = append(errs, fmt.Sprintf("line %d: failed to hash password", lineNo))
+		parsedRows = append(parsedRows, parsedTeacherRow{
+			lineNo:   lineNo,
+			fullName: fullName,
+			email:    email,
+			phoneStr: phoneStr,
+			password: password,
+		})
+	}
+
+	if len(parsedRows) == 0 {
+		return 0, errs, nil
+	}
+
+	// Compute hashes in parallel across goroutines
+	type hashedRow struct {
+		row  parsedTeacherRow
+		hash string
+		err  error
+	}
+
+	hashedChan := make(chan hashedRow, len(parsedRows))
+	for _, pr := range parsedRows {
+		go func(row parsedTeacherRow) {
+			h, err := s.passSvc.HashPassword(row.password)
+			hashedChan <- hashedRow{row: row, hash: h, err: err}
+		}(pr)
+	}
+
+	importedCount := 0
+	for i := 0; i < len(parsedRows); i++ {
+		hr := <-hashedChan
+		if hr.err != nil {
+			errs = append(errs, fmt.Sprintf("line %d: failed to hash password: %v", hr.row.lineNo, hr.err))
 			continue
 		}
 
 		var phone *string
-		if phoneStr != "" {
-			phone = &phoneStr
+		if hr.row.phoneStr != "" {
+			p := hr.row.phoneStr
+			phone = &p
 		}
 
-		_, err = s.userRepo.Create(ctx, claims.SchoolID, models.RoleTeacher, fullName, email, hash, phone)
+		_, err = s.userRepo.Create(ctx, claims.SchoolID, models.RoleTeacher, hr.row.fullName, hr.row.email, hr.hash, phone)
 		if err != nil {
 			if isDuplicateError(err) {
-				errs = append(errs, fmt.Sprintf("line %d: teacher with email %q already exists", lineNo, email))
+				errs = append(errs, fmt.Sprintf("line %d: teacher with email %q already exists", hr.row.lineNo, hr.row.email))
 				continue
 			}
-			errs = append(errs, fmt.Sprintf("line %d: %s", lineNo, err.Error()))
+			errs = append(errs, fmt.Sprintf("line %d: %s", hr.row.lineNo, err.Error()))
 			continue
 		}
 		importedCount++
@@ -270,7 +353,18 @@ func NewAcademicYearService(yr *repository.AcademicYearRepo) *AcademicYearServic
 
 func (s *AcademicYearService) List(ctx context.Context) ([]*models.AcademicYear, error) {
 	claims := auth.ClaimsFromContext(ctx)
-	return s.yearRepo.List(ctx, claims.SchoolID)
+	cacheKey := fmt.Sprintf("%s:academic_years", claims.SchoolID)
+	if val, ok := GlobalTenantCache.Get(cacheKey); ok {
+		if res, ok := val.([]*models.AcademicYear); ok {
+			return res, nil
+		}
+	}
+	years, err := s.yearRepo.List(ctx, claims.SchoolID)
+	if err != nil {
+		return nil, err
+	}
+	GlobalTenantCache.Set(cacheKey, years, 60*time.Second)
+	return years, nil
 }
 
 func (s *AcademicYearService) Create(ctx context.Context, req *dto.CreateAcademicYearRequest) (*models.AcademicYear, error) {
@@ -295,6 +389,7 @@ func (s *AcademicYearService) Create(ctx context.Context, req *dto.CreateAcademi
 		}
 		return nil, apperror.Internal(err)
 	}
+	GlobalTenantCache.InvalidateSchool(claims.SchoolID)
 	return ay, nil
 }
 

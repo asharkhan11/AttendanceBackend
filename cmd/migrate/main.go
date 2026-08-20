@@ -87,6 +87,22 @@ func main() {
 		v, _, _ := m.Version()
 		fmt.Printf("rolled back %d migration(s) — now at version %d\n", n, v)
 
+	case "force":
+		if len(os.Args) < 3 {
+			fmt.Fprintln(os.Stderr, "usage: migrate force <version>")
+			os.Exit(1)
+		}
+		v, err := strconv.Atoi(os.Args[2])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "invalid version:", os.Args[2])
+			os.Exit(1)
+		}
+		if err := m.Force(v); err != nil {
+			fmt.Fprintln(os.Stderr, "migrate force:", err)
+			os.Exit(1)
+		}
+		fmt.Printf("forced migration version to %d (clean)\n", v)
+
 	case "version":
 		v, dirty, err := m.Version()
 		if err != nil {

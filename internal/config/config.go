@@ -128,24 +128,24 @@ func Load() (*Config, error) {
 	// Build migrations URL: same DB but we need file-based migration path
 	cfg.MigrationsURL = "file://internal/db/migrations"
 
-	// Database pool configuration
-	maxConns, err := parseInt("DB_MAX_CONNS", 20)
+	// Database pool configuration (tuned for 750+ concurrent active users)
+	maxConns, err := parseInt("DB_MAX_CONNS", 100)
 	if err != nil {
 		return nil, err
 	}
 	cfg.DBMaxConns = int32(maxConns)
 
-	minConns, err := parseInt("DB_MIN_CONNS", 2)
+	minConns, err := parseInt("DB_MIN_CONNS", 25)
 	if err != nil {
 		return nil, err
 	}
 	cfg.DBMinConns = int32(minConns)
 
-	cfg.DBMaxConnIdleTime, err = parseDuration("DB_MAX_CONN_IDLE_TIME", "30m")
+	cfg.DBMaxConnIdleTime, err = parseDuration("DB_MAX_CONN_IDLE_TIME", "5m")
 	if err != nil {
 		return nil, err
 	}
-	cfg.DBMaxConnLifetime, err = parseDuration("DB_MAX_CONN_LIFETIME", "1h")
+	cfg.DBMaxConnLifetime, err = parseDuration("DB_MAX_CONN_LIFETIME", "30m")
 	if err != nil {
 		return nil, err
 	}

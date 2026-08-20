@@ -143,9 +143,44 @@ func (h *ClassHandler) AssignTeacher(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteOK(w, cls)
 }
 
+// Update godoc
+// @Summary Update a class
+// @Description Updates the grade level and section of a specific class.
+// @Tags Classes
+// @Accept json
+// @Produce json
+// @Security Bearer
+// @Param id path string true "Class ID (UUID)"
+// @Param request body dto.UpdateClassRequest true "Class update payload"
+// @Success 200 {object} httpx.Envelope{data=repository.ClassWithTeacher}
+// @Failure 400 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Failure 401 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Failure 403 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Failure 404 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Failure 409 {object} httpx.Envelope{error=httpx.ErrBody}
+// @Router /api/v1/classes/{id} [put]
+func (h *ClassHandler) Update(w http.ResponseWriter, r *http.Request) {
+	id, err := parseUUID(r, "id")
+	if err != nil {
+		httpx.WriteError(w, err)
+		return
+	}
+	var req dto.UpdateClassRequest
+	if err := dto.Decode(r, &req); err != nil {
+		httpx.WriteError(w, err)
+		return
+	}
+	cls, err := h.svc.Update(r.Context(), id, &req)
+	if err != nil {
+		httpx.WriteError(w, err)
+		return
+	}
+	httpx.WriteOK(w, cls)
+}
+
 // Delete godoc
 // @Summary Delete a class
-// @Description Deletes a specific class.
+// @Description Deletes a specific class and all its students (cascade).
 // @Tags Classes
 // @Accept json
 // @Produce json

@@ -65,6 +65,7 @@ func NewRouter(cfg *config.Config, pool *pgxpool.Pool) http.Handler {
 	// ─── Global middleware ────────────────────────────────────────────────────
 	r.Use(chimw.RealIP)
 	r.Use(mw.RequestID)
+	r.Use(chimw.Compress(5))
 	r.Use(mw.Logger)
 	r.Use(mw.Recoverer)
 	r.Use(mw.CORS(cfg.CORSAllowedOrigins))
@@ -137,6 +138,7 @@ func NewRouter(cfg *config.Config, pool *pgxpool.Pool) http.Handler {
 			// Classes (admin only write operations)
 			r.Get("/api/v1/classes", classH.List)
 			r.Post("/api/v1/classes", classH.Create)
+			r.Put("/api/v1/classes/{id}", classH.Update)
 			r.Put("/api/v1/classes/{id}/teacher", classH.AssignTeacher)
 			r.Delete("/api/v1/classes/{id}", classH.Delete)
 

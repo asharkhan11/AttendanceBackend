@@ -125,6 +125,11 @@ type CreateClassRequest struct {
 	ClassTeacherID *string `json:"class_teacher_id" validate:"omitempty,uuid"`
 }
 
+type UpdateClassRequest struct {
+	GradeLevel int16  `json:"grade_level" validate:"required,min=1,max=12"`
+	Section    string `json:"section"     validate:"required,max=10"`
+}
+
 type AssignClassTeacherRequest struct {
 	ClassTeacherID *string `json:"class_teacher_id" validate:"omitempty,uuid"`
 }

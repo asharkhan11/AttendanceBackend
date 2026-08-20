@@ -29,7 +29,11 @@ echo "==> PostgreSQL is ready!"
 echo "==> Running database migrations..."
 /app/attendance-migrate up
 
-echo "==> Seeding demo school data for testing..."
-/app/attendance-seed
+if [ "${RUN_SEED:-false}" = "true" ] || [ "${RUN_SEED:-0}" = "1" ]; then
+  echo "==> Seeding demo school data for testing..."
+  /app/attendance-seed || echo "Warning: Seed skipped or already populated."
+else
+  echo "==> Production mode: Skipping mock data seed (set RUN_SEED=true to seed)."
+fi
 
-echo "==> Database initialization, migration, and seeding completed successfully!"
+echo "==> Database initialization and migrations completed successfully!"

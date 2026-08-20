@@ -30,6 +30,13 @@ var defaultDayNames = map[int16]string{
 }
 
 func (s *CalendarService) GetWeeklySchedule(ctx context.Context, schoolID uuid.UUID) ([]models.WeeklySchedule, error) {
+	cacheKey := fmt.Sprintf("%s:weekly_schedule", schoolID)
+	if val, ok := GlobalTenantCache.Get(cacheKey); ok {
+		if res, ok := val.([]models.WeeklySchedule); ok {
+			return res, nil
+		}
+	}
+
 	existing, err := s.repo.GetWeeklySchedules(ctx, schoolID)
 	if err != nil {
 		return nil, fmt.Errorf("get weekly schedules: %w", err)
@@ -56,6 +63,7 @@ func (s *CalendarService) GetWeeklySchedule(ctx context.Context, schoolID uuid.U
 		}
 	}
 
+	GlobalTenantCache.Set(cacheKey, result, 60*time.Second)
 	return result, nil
 }
 
@@ -73,10 +81,18 @@ func (s *CalendarService) UpdateWeeklySchedule(ctx context.Context, schoolID uui
 		}
 	}
 
+	GlobalTenantCache.InvalidateKey(fmt.Sprintf("%s:weekly_schedule", schoolID))
 	return s.GetWeeklySchedule(ctx, schoolID)
 }
 
 func (s *CalendarService) GetDateHolidays(ctx context.Context, schoolID uuid.UUID, fromStr, toStr string) ([]models.DateHoliday, error) {
+	cacheKey := fmt.Sprintf("%s:holidays:%s:%s", schoolID, fromStr, toStr)
+	if val, ok := GlobalTenantCache.Get(cacheKey); ok {
+		if res, ok := val.([]models.DateHoliday); ok {
+			return res, nil
+		}
+	}
+
 	var from, to *time.Time
 	if fromStr != "" {
 		t, err := time.Parse("2006-01-02", fromStr)
@@ -93,7 +109,13 @@ func (s *CalendarService) GetDateHolidays(ctx context.Context, schoolID uuid.UUI
 		to = &t
 	}
 
-	return s.repo.GetDateHolidays(ctx, schoolID, from, to)
+	holidays, err := s.repo.GetDateHolidays(ctx, schoolID, from, to)
+	if err != nil {
+		return nil, err
+	}
+
+	GlobalTenantCache.Set(cacheKey, holidays, 60*time.Second)
+	return holidays, nil
 }
 
 func (s *CalendarService) CreateDateHoliday(ctx context.Context, schoolID uuid.UUID, req models.CreateHolidayRequest) (*models.DateHoliday, error) {
@@ -122,9 +144,19 @@ func (s *CalendarService) CreateDateHoliday(ctx context.Context, schoolID uuid.U
 		IsHoliday:   isHoliday,
 	}
 
-	return s.repo.CreateDateHoliday(ctx, h)
+	created, err := s.repo.CreateDateHoliday(ctx, h)
+	if err != nil {
+		return nil, err
+	}
+
+	GlobalTenantCache.InvalidateSchool(schoolID)
+	return created, nil
 }
 
 func (s *CalendarService) DeleteDateHoliday(ctx context.Context, schoolID uuid.UUID, holidayID uuid.UUID) error {
-	return s.repo.DeleteDateHoliday(ctx, schoolID, holidayID)
+	err := s.repo.DeleteDateHoliday(ctx, schoolID, holidayID)
+	if err == nil {
+		GlobalTenantCache.InvalidateSchool(schoolID)
+	}
+	return err
 }
