@@ -87,9 +87,9 @@ type Argon2Params struct {
 }
 
 var DefaultArgon2Params = Argon2Params{
-	MemoryKB:    65536,
-	Iterations:  3,
-	Parallelism: 2,
+	MemoryKB:    16384, // 16 MB RFC 9106 recommended minimal profile
+	Iterations:  2,
+	Parallelism: 1,
 	SaltLen:     16,
 	KeyLen:      32,
 }
@@ -101,12 +101,21 @@ type PasswordService struct {
 
 func NewPasswordService(memKB, iterations uint32, parallelism uint8) *PasswordService {
 	p := DefaultArgon2Params
-	p.MemoryKB = memKB
-	p.Iterations = iterations
-	p.Parallelism = parallelism
-	maxWorkers := runtime.NumCPU() * 4
-	if maxWorkers < 8 {
-		maxWorkers = 8
+	if memKB > 0 {
+		p.MemoryKB = memKB
+	}
+	if iterations > 0 {
+		p.Iterations = iterations
+	}
+	if parallelism > 0 {
+		p.Parallelism = parallelism
+	}
+	maxWorkers := runtime.NumCPU() * 2
+	if maxWorkers < 2 {
+		maxWorkers = 2
+	}
+	if maxWorkers > 4 {
+		maxWorkers = 4
 	}
 	return &PasswordService{
 		params: p,

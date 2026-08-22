@@ -5,8 +5,10 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -288,24 +290,62 @@ func (s *TeacherService) BulkImportCSV(ctx context.Context, r io.Reader) (int, [
 		return 0, errs, nil
 	}
 
-	// Compute hashes in parallel across goroutines
+	// Compute hashes with bounded concurrency & password memoization
 	type hashedRow struct {
 		row  parsedTeacherRow
 		hash string
 		err  error
 	}
 
-	hashedChan := make(chan hashedRow, len(parsedRows))
-	for _, pr := range parsedRows {
-		go func(row parsedTeacherRow) {
-			h, err := s.passSvc.HashPassword(row.password)
-			hashedChan <- hashedRow{row: row, hash: h, err: err}
-		}(pr)
+	passHashCache := make(map[string]string)
+	var passMu sync.Mutex
+
+	getOrComputeHash := func(pwd string) (string, error) {
+		passMu.Lock()
+		if h, exists := passHashCache[pwd]; exists {
+			passMu.Unlock()
+			return h, nil
+		}
+		passMu.Unlock()
+
+		h, err := s.passSvc.HashPassword(pwd)
+		if err != nil {
+			return "", err
+		}
+
+		passMu.Lock()
+		passHashCache[pwd] = h
+		passMu.Unlock()
+		return h, nil
 	}
+
+	numWorkers := runtime.NumCPU()
+	if numWorkers < 1 {
+		numWorkers = 1
+	} else if numWorkers > 2 {
+		numWorkers = 2
+	}
+
+	jobs := make(chan parsedTeacherRow, len(parsedRows))
+	results := make(chan hashedRow, len(parsedRows))
+
+	for w := 0; w < numWorkers; w++ {
+		go func() {
+			for pr := range jobs {
+				h, err := getOrComputeHash(pr.password)
+				results <- hashedRow{row: pr, hash: h, err: err}
+			}
+		}()
+	}
+
+	for _, pr := range parsedRows {
+		jobs <- pr
+	}
+	close(jobs)
 
 	importedCount := 0
 	for i := 0; i < len(parsedRows); i++ {
-		hr := <-hashedChan
+		hr := <-results
 		if hr.err != nil {
 			errs = append(errs, fmt.Sprintf("line %d: failed to hash password: %v", hr.row.lineNo, hr.err))
 			continue

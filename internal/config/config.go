@@ -71,19 +71,19 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
-	memKB, err := parseUint32("ARGON2_MEMORY_KB", 65536)
+	memKB, err := parseUint32("ARGON2_MEMORY_KB", 16384)
 	if err != nil {
 		return nil, err
 	}
 	cfg.Argon2MemoryKB = memKB
 
-	iters, err := parseUint32("ARGON2_ITERATIONS", 3)
+	iters, err := parseUint32("ARGON2_ITERATIONS", 2)
 	if err != nil {
 		return nil, err
 	}
 	cfg.Argon2Iterations = iters
 
-	para, err := parseUint8("ARGON2_PARALLELISM", 2)
+	para, err := parseUint8("ARGON2_PARALLELISM", 1)
 	if err != nil {
 		return nil, err
 	}
@@ -128,14 +128,14 @@ func Load() (*Config, error) {
 	// Build migrations URL: same DB but we need file-based migration path
 	cfg.MigrationsURL = "file://internal/db/migrations"
 
-	// Database pool configuration (tuned for 750+ concurrent active users)
-	maxConns, err := parseInt("DB_MAX_CONNS", 100)
+	// Database pool configuration (tuned for 30+ schools with low resource footprint)
+	maxConns, err := parseInt("DB_MAX_CONNS", 50)
 	if err != nil {
 		return nil, err
 	}
 	cfg.DBMaxConns = int32(maxConns)
 
-	minConns, err := parseInt("DB_MIN_CONNS", 25)
+	minConns, err := parseInt("DB_MIN_CONNS", 10)
 	if err != nil {
 		return nil, err
 	}
