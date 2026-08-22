@@ -139,10 +139,12 @@ func (r *AnalyticsRepo) StudentDayLog(ctx context.Context, studentID uuid.UUID, 
 
 // DefaulterRow is a student below the threshold.
 type DefaulterRow struct {
-	StudentID     uuid.UUID
-	FullName      string
-	RollNumber    string
-	AttendancePct float64
+	StudentID     uuid.UUID `json:"student_id"`
+	FullName      string    `json:"full_name"`
+	RollNumber    string    `json:"roll_number"`
+	AttendancePct float64   `json:"attendance_pct"`
+	PresentCount  int64     `json:"present_count"`
+	TotalSessions int64     `json:"total_sessions"`
 }
 
 func (r *AnalyticsRepo) Defaulters(ctx context.Context, classID uuid.UUID, from, to time.Time, threshold float64) ([]*DefaulterRow, error) {
@@ -151,7 +153,9 @@ func (r *AnalyticsRepo) Defaulters(ctx context.Context, classID uuid.UUID, from,
 			st.id,
 			st.full_name,
 			COALESCE(e.roll_number, st.roll_number) AS roll_number,
-			COALESCE(ROUND(100.0 * COUNT(*) FILTER (WHERE ar.status='present') / NULLIF(COUNT(*),0), 2), 0) AS pct
+			COALESCE(ROUND(100.0 * COUNT(*) FILTER (WHERE ar.status='present') / NULLIF(COUNT(*),0), 2), 0) AS pct,
+			COALESCE(COUNT(*) FILTER (WHERE ar.status='present'), 0) AS present_count,
+			COALESCE(COUNT(*), 0) AS total_sessions
 		FROM students st
 		LEFT JOIN student_class_enrollments e ON e.student_id = st.id AND e.class_id = $1
 		JOIN attendance_records ar ON ar.student_id=st.id
@@ -169,7 +173,7 @@ func (r *AnalyticsRepo) Defaulters(ctx context.Context, classID uuid.UUID, from,
 	var out []*DefaulterRow
 	for rows.Next() {
 		row := &DefaulterRow{}
-		if err := rows.Scan(&row.StudentID, &row.FullName, &row.RollNumber, &row.AttendancePct); err != nil {
+		if err := rows.Scan(&row.StudentID, &row.FullName, &row.RollNumber, &row.AttendancePct, &row.PresentCount, &row.TotalSessions); err != nil {
 			return nil, err
 		}
 		out = append(out, row)
@@ -259,12 +263,12 @@ func (r *AnalyticsRepo) SchoolTrend(ctx context.Context, schoolID uuid.UUID, fro
 
 // ClassRosterWithAttendance returns each active student with their overall attendance % in range.
 type RosterAttendanceRow struct {
-	StudentID     uuid.UUID
-	FullName      string
-	RollNumber    string
-	AttendancePct float64
-	PresentCount  int64
-	TotalCount    int64
+	StudentID     uuid.UUID `json:"student_id"`
+	FullName      string    `json:"full_name"`
+	RollNumber    string    `json:"roll_number"`
+	AttendancePct float64   `json:"attendance_pct"`
+	PresentCount  int64     `json:"present_count"`
+	TotalCount    int64     `json:"total_count"`
 }
 
 func (r *AnalyticsRepo) ClassRosterWithAttendance(ctx context.Context, classID uuid.UUID, from, to time.Time) ([]*RosterAttendanceRow, error) {
@@ -306,6 +310,11 @@ type SchoolOverviewData struct {
 	TotalSessions        int64                 `json:"total_sessions"`
 	TotalDefaulters      int64                 `json:"total_defaulters"`
 	OverallAttendancePct float64               `json:"overall_attendance_pct"`
+	PresentRecords       int64                 `json:"present_records"`
+	AbsentRecords        int64                 `json:"absent_records"`
+	LateRecords          int64                 `json:"late_records"`
+	ExcusedRecords       int64                 `json:"excused_records"`
+	TotalRecords         int64                 `json:"total_records"`
 	ClassComparisons     []*ClassComparisonRow `json:"class_comparisons"`
 }
 
@@ -351,8 +360,14 @@ func (r *AnalyticsRepo) SchoolOverview(ctx context.Context, schoolID uuid.UUID, 
 	}
 	_ = r.q(ctx).QueryRow(ctx, qSess, argsSess...).Scan(&out.TotalSessions)
 
-	// Overall attendance %
-	qPct := `SELECT COALESCE(ROUND(100.0 * COUNT(ar.id) FILTER (WHERE ar.status='present') / NULLIF(COUNT(ar.id), 0), 2), 0)
+	// Attendance records breakdown and overall attendance %
+	qPct := `SELECT
+	         COALESCE(COUNT(ar.id), 0) AS total_records,
+	         COALESCE(COUNT(ar.id) FILTER (WHERE ar.status='present'), 0) AS present_records,
+	         COALESCE(COUNT(ar.id) FILTER (WHERE ar.status='absent'), 0) AS absent_records,
+	         COALESCE(COUNT(ar.id) FILTER (WHERE ar.status='late'), 0) AS late_records,
+	         COALESCE(COUNT(ar.id) FILTER (WHERE ar.status='excused'), 0) AS excused_records,
+	         COALESCE(ROUND(100.0 * COUNT(ar.id) FILTER (WHERE ar.status='present') / NULLIF(COUNT(ar.id), 0), 2), 0) AS overall_pct
 	         FROM attendance_records ar
 	         JOIN attendance_sessions s ON s.id=ar.session_id
 	         WHERE ar.school_id=$1 AND s.session_date BETWEEN $2 AND $3`
@@ -361,7 +376,14 @@ func (r *AnalyticsRepo) SchoolOverview(ctx context.Context, schoolID uuid.UUID, 
 		qPct += ` AND s.class_id=$4`
 		argsPct = append(argsPct, *classID)
 	}
-	_ = r.q(ctx).QueryRow(ctx, qPct, argsPct...).Scan(&out.OverallAttendancePct)
+	_ = r.q(ctx).QueryRow(ctx, qPct, argsPct...).Scan(
+		&out.TotalRecords,
+		&out.PresentRecords,
+		&out.AbsentRecords,
+		&out.LateRecords,
+		&out.ExcusedRecords,
+		&out.OverallAttendancePct,
+	)
 
 	// Class comparisons (join sessions correctly with session_date check)
 	qComp := `SELECT
